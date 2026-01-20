@@ -126,42 +126,33 @@ st.markdown("""
             font-size: 0.75rem !important;
         }
 
-        /* 3. The Big Hammer: Force Columns to NOT stack */
-        /* Streamlit columns usually stack on mobile because min-width > viewport. 
-           We force them to accept being tiny. */
-        div[data-testid="column"] {
-            width: auto !important;
-            flex: 1 1 auto !important;
-            min-width: 1px !important;
-        }
-        
-        /* 4. Scale down Metrics to fit in the tiny columns */
+        /* 3. Scale down Metrics */
         .stMetric {
             padding: 5px 8px !important;
         }
         .stMetric label {
-            font-size: 0.6rem !important;
+            font-size: 0.75rem !important;
         }
         .stMetric div[data-testid="stMetricValue"] {
-            font-size: 0.9rem !important;
+            font-size: 1.1rem !important;
         }
         
-        /* 5. Calendar Cells small */
+        /* 4. Calendar Cells - Allow them to be readable but compact */
         .fire-grid-cell {
-            font-size: 0.5rem !important;
-            padding: 1px !important;
+            font-size: 0.7rem !important;
+            padding: 2px !important;
         }
         
-        /* 6. Feed Cards - Reduce padding */
+        /* 5. Feed Cards - Reduce padding */
         .feed-card {
             padding: 10px !important;
         }
-        .feed-title { font-size: 0.9rem !important; }
-        .feed-stats { font-size: 0.8rem !important; }
+        .feed-title { font-size: 0.95rem !important; }
+        .feed-stats { font-size: 0.85rem !important; }
         
-        /* 7. General headers */
-        h1 { font-size: 1.5rem !important; }
-        h3 { font-size: 1.1rem !important; }
+        /* 6. General headers */
+        h1 { font-size: 1.6rem !important; }
+        h3 { font-size: 1.2rem !important; }
     }
     
 </style>
