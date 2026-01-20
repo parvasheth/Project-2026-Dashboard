@@ -1,0 +1,10 @@
+streamlit
+garminconnect
+pandas
+plotly
+folium
+streamlit-folium
+python-dotenv
+gspread
+oauth2client
+st-gsheets-connection
