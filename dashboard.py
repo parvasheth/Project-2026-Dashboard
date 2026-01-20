@@ -111,6 +111,58 @@ st.markdown("""
         flex-direction: row;
         gap: 20px;
     }
+
+    /* --- MOBILE OPTIMIZATION --- */
+    @media (max-width: 640px) {
+        /* 1. Reduce padding to maximize space */
+        .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-top: 1rem !important;
+        }
+
+        /* 2. Force Sidebar/Filters to scale down text */
+        div[role="radiogroup"] label {
+            font-size: 0.75rem !important;
+        }
+
+        /* 3. The Big Hammer: Force Columns to NOT stack */
+        /* Streamlit columns usually stack on mobile because min-width > viewport. 
+           We force them to accept being tiny. */
+        div[data-testid="column"] {
+            width: auto !important;
+            flex: 1 1 auto !important;
+            min-width: 1px !important;
+        }
+        
+        /* 4. Scale down Metrics to fit in the tiny columns */
+        .stMetric {
+            padding: 5px 8px !important;
+        }
+        .stMetric label {
+            font-size: 0.6rem !important;
+        }
+        .stMetric div[data-testid="stMetricValue"] {
+            font-size: 0.9rem !important;
+        }
+        
+        /* 5. Calendar Cells small */
+        .fire-grid-cell {
+            font-size: 0.5rem !important;
+            padding: 1px !important;
+        }
+        
+        /* 6. Feed Cards - Reduce padding */
+        .feed-card {
+            padding: 10px !important;
+        }
+        .feed-title { font-size: 0.9rem !important; }
+        .feed-stats { font-size: 0.8rem !important; }
+        
+        /* 7. General headers */
+        h1 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.1rem !important; }
+    }
     
 </style>
 """, unsafe_allow_html=True)
