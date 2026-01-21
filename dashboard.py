@@ -378,7 +378,7 @@ col_train_L, col_train_R = st.columns([2, 1])
 
 # --- Training Left: PMC Chart ---
 with col_train_L:
-    st.subheader("Fitness, Fatigue and Form Chart")
+    st.markdown("<div style='font-size: 1rem; font-weight: 600; margin-bottom: 5px;'>Fitness, Fatigue and Form Chart</div>", unsafe_allow_html=True)
     # Reordered Tabs: 1Y First
     s1, s2, s3, s4, s5, s6 = st.tabs(["1Y", "YTD", "6M", "3M", "30D", "7D"])
     
