@@ -117,43 +117,48 @@ st.markdown("""
     @media (max-width: 640px) {
         /* 1. Reduce padding to maximize space */
         .block-container {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            padding-top: 1rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
+            padding-top: 0.5rem !important;
         }
 
-        /* 2. Force Sidebar/Filters to scale down text */
-        div[role="radiogroup"] label {
-            font-size: 0.75rem !important;
-        }
+        /* 2. Scale down Headers */
+        h1 { font-size: 1.5rem !important; margin-bottom: 0.5rem !important; }
+        h2 { font-size: 1.3rem !important; }
+        h3 { font-size: 1.1rem !important; }
 
-        /* 3. Scale down Metrics */
-        .stMetric {
-            padding: 5px 8px !important;
-        }
-        .stMetric label {
-            font-size: 0.75rem !important;
-        }
-        .stMetric div[data-testid="stMetricValue"] {
-            font-size: 1.1rem !important;
+        /* 3. Scale down Metrics & text */
+        .stMetric { padding: 8px !important; }
+        .stMetric label { font-size: 0.7rem !important; }
+        .stMetric div[data-testid="stMetricValue"] { font-size: 1.2rem !important; }
+        
+        /* 4. Touch Targets - Make buttons taller/easier to tap */
+        div[data-testid="stButton"] > button {
+            min_height: 45px !important;
+            font-size: 1rem !important;
+            margin-bottom: 8px !important;
         }
         
-        /* 4. Calendar Cells - Allow them to be readable but compact */
-        .fire-grid-cell {
-            font-size: 0.7rem !important;
-            padding: 2px !important;
-        }
-        
-        /* 5. Feed Cards - Reduce padding */
-        .feed-card {
+        /* 5. Coach Card Adaptation */
+        .coach-card {
             padding: 10px !important;
+            margin-bottom: 15px !important;
         }
-        .feed-title { font-size: 0.95rem !important; }
-        .feed-stats { font-size: 0.85rem !important; }
+        .coach-header { font-size: 0.9rem !important; }
         
-        /* 7. General headers */
-        h1 { font-size: 1.6rem !important; }
-        h3 { font-size: 1.2rem !important; }
+        /* 6. Calendar & Feed */
+        .fire-grid-cell { font-size: 0.65rem !important; padding: 1px !important; }
+        .feed-card { padding: 10px !important; }
+        
+        /* 7. Tabs - easier scrolling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            font-size: 0.8rem !important;
+        }
     }
     
     /* --- BUTTON STYLING --- */
