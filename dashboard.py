@@ -313,6 +313,48 @@ st.markdown("---")
 # ROW 1: TRAINING STATUS & AI COACH
 # ==========================================
 st.subheader("Training Status & Advisory")
+
+# --- 1. AI Coach (Full Width) ---
+import google.generativeai as genai
+try:
+    GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=GENAI_API_KEY)
+    
+    with st.expander("📝 AI Coach Settings & Context", expanded=False):
+        user_manual_context = st.text_area("Coach Context", placeholder="E.g. Feeling tired...", label_visibility="collapsed")
+    
+    # CSS for Coach Card
+    st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
+
+    user_context_str = f"User: Parva. Goals: Maintain #Project2026 streak. Physiology: RHR 45, MaxHR 197. Notes: {user_manual_context or 'None'}"
+    metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df_filtered.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
+    prompt = f"Act as an expert Coach. Review:\n{user_context_str}\n{metrics_context_str}\nTask: 2 sentence training focus for next 24h."
+
+    if user_manual_context != st.session_state.get('last_context', ''):
+        if 'gemini_advice' in st.session_state: del st.session_state['gemini_advice']
+        st.session_state['last_context'] = user_manual_context
+    
+    if 'gemini_advice' not in st.session_state:
+        response_text = "Thinking..."
+        models = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash', 'gemini-1.5-flash']
+        success = False
+        for m in models:
+            try:
+                model = genai.GenerativeModel(m)
+                response_text = model.generate_content(prompt).text
+                success = True; break
+            except: continue
+        if not success: response_text = "Coach Offline."
+        st.session_state['gemini_advice'] = response_text
+        
+    st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> AI Coach</div><div>{st.session_state['gemini_advice']}</div></div>""", unsafe_allow_html=True)
+    if st.button("Refresh Advice", key="btn_refresh_advice"):
+        del st.session_state['gemini_advice']; st.rerun()
+
+except Exception as e:
+    st.caption(f"Coach Error: {e}")
+
+# --- 2. Charts (Split View) ---
 col_train_L, col_train_R = st.columns([2, 1])
 
 # --- Training Left: PMC Chart ---
@@ -351,7 +393,7 @@ with col_train_L:
     with s5: plot_pmc(days_lookback=365)
     with s6: plot_pmc(is_ytd=True)
 
-# --- Training Right: Gauge + Coach ---
+# --- Training Right: Gauge ---
 with col_train_R:
     # 1. Gauge
     fig_gauge = go.Figure(go.Indicator(
@@ -363,46 +405,6 @@ with col_train_R:
     fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=20, r=20, t=30, b=10), height=150)
     st.plotly_chart(fig_gauge, use_container_width=True)
     st.caption(f"Status: {status_text} | CTL: {curr_ctl:.0f} | TSB: {curr_tsb:.0f}")
-
-    # 2. Gemini Coach
-    import google.generativeai as genai
-    try:
-        GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
-        genai.configure(api_key=GENAI_API_KEY)
-        
-        with st.expander("📝 Context", expanded=False):
-            user_manual_context = st.text_area("Coach Context", placeholder="E.g. Feeling tired...", label_visibility="collapsed")
-        
-        # CSS for Coach Card
-        st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
-
-        user_context_str = f"User: Parva. Goals: Maintain #Project2026 streak. Physiology: RHR 45, MaxHR 197. Notes: {user_manual_context or 'None'}"
-        metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df_filtered.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
-        prompt = f"Act as an expert Coach. Review:\n{user_context_str}\n{metrics_context_str}\nTask: 2 sentence training focus for next 24h."
-
-        if user_manual_context != st.session_state.get('last_context', ''):
-            if 'gemini_advice' in st.session_state: del st.session_state['gemini_advice']
-            st.session_state['last_context'] = user_manual_context
-        
-        if 'gemini_advice' not in st.session_state:
-            response_text = "Thinking..."
-            models = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash', 'gemini-1.5-flash']
-            success = False
-            for m in models:
-                try:
-                    model = genai.GenerativeModel(m)
-                    response_text = model.generate_content(prompt).text
-                    success = True; break
-                except: continue
-            if not success: response_text = "Coach Offline."
-            st.session_state['gemini_advice'] = response_text
-            
-        st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> Coach</div><div>{st.session_state['gemini_advice']}</div></div>""", unsafe_allow_html=True)
-        if st.button("Refresh", key="btn_refresh_advice"):
-            del st.session_state['gemini_advice']; st.rerun()
-
-    except Exception as e:
-        st.caption(f"Coach Error: {e}")
 
 st.markdown("---")
 
