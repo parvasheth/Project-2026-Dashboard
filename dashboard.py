@@ -316,10 +316,38 @@ st.subheader("Training Status & Advisory")
 
 # --- 1. AI Coach (Full Width) ---
 import google.generativeai as genai
+
+# Caching the expensive API call (6 hours = 21600 seconds)
+@st.cache_data(ttl=21600, show_spinner="Summoning the Coach...")
+def ask_gemini_coach(prompt_text):
+    """
+    Calls Gemini API with caching.
+    Raises exception on failure so bad results aren't cached.
+    """
+    try:
+        GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=GENAI_API_KEY)
+        
+        # Try Flash models first, then standard Pro if needed
+        models = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-2.0-flash'] 
+        
+        for m in models:
+            try:
+                model = genai.GenerativeModel(m)
+                response = model.generate_content(prompt_text)
+                return response.text
+            except Exception as e:
+                # Check for rate limits specifically to fail fast if needed? 
+                # Or just let the loop continue.
+                continue
+        
+        # If we get here, all models failed
+        raise Exception("All Gemini models failed to respond.")
+        
+    except Exception as outer_e:
+        raise outer_e
+
 try:
-    GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=GENAI_API_KEY)
-    
     with st.expander("📝 AI Coach Settings & Context", expanded=False):
         user_manual_context = st.text_area("Coach Context", placeholder="E.g. Feeling tired...", label_visibility="collapsed")
     
@@ -330,42 +358,35 @@ try:
     metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df_filtered.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
     prompt = f"Act as an expert Coach. Review:\n{user_context_str}\n{metrics_context_str}\nTask: 2 sentence training focus for next 24h."
 
-    if user_manual_context != st.session_state.get('last_context', ''):
-        if 'gemini_advice' in st.session_state: del st.session_state['gemini_advice']
-        st.session_state['last_context'] = user_manual_context
+    # Logic:
+    # 1. If context changed, we used to manually clear. 
+    #    With st.cache_data, if 'prompt' changes (it includes context), it auto-runs.
+    #    However, we need to ensure the CACHE is cleared if the user manually hits refresh.
     
-    if 'gemini_advice' not in st.session_state:
-        response_text = "Thinking..."
-        # Try Flash models first, then standard Pro if needed
-        models = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-2.0-flash'] 
-        success = False
-        last_error = ""
-        
-        for m in models:
-            try:
-                model = genai.GenerativeModel(m)
-                response_text = model.generate_content(prompt).text
-                success = True
-                break
-            except Exception as e: 
-                err_str = str(e)
-                if "429" in err_str or "Quota" in err_str:
-                    last_error = "Rate Limit Exceeded (Try again in 1m)"
-                else:
-                    last_error = err_str
-                continue
-        
-        if not success: 
-            response_text = f"Coach Offline: {last_error}"
-            
-        st.session_state['gemini_advice'] = response_text
-        
-    st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> AI Coach</div><div>{st.session_state['gemini_advice']}</div></div>""", unsafe_allow_html=True)
+    advice_text = ""
+    error_display = ""
+    
+    try:
+        advice_text = ask_gemini_coach(prompt)
+    except Exception as e:
+        err_str = str(e)
+        if "429" in err_str or "Quota" in err_str:
+             error_display = "Coach is resting (Rate Limit hit). Try again later."
+        else:
+             error_display = f"Coach Offline: {err_str}"
+
+    if advice_text:
+        st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> AI Coach</div><div>{advice_text}</div></div>""", unsafe_allow_html=True)
+    else:
+        # Fallback display
+        st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> AI Coach</div><div>{error_display}</div></div>""", unsafe_allow_html=True)
+
     if st.button("Refresh Advice", key="btn_refresh_advice"):
-        del st.session_state['gemini_advice']; st.rerun()
+        ask_gemini_coach.clear()
+        st.rerun()
 
 except Exception as e:
-    st.caption(f"Coach Error: {e}")
+    st.caption(f"Coach Input Error: {e}")
 
 # --- 2. Charts (Split View) ---
 col_train_L, col_train_R = st.columns([2, 1])
