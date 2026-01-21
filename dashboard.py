@@ -336,15 +336,22 @@ try:
     
     if 'gemini_advice' not in st.session_state:
         response_text = "Thinking..."
-        models = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash', 'gemini-1.5-flash']
+        # Use 1.5 Flash as primary for speed/stability, 2.0 as fallback or experimental
+        models = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-2.0-flash'] 
         success = False
+        last_error = ""
         for m in models:
             try:
                 model = genai.GenerativeModel(m)
                 response_text = model.generate_content(prompt).text
                 success = True; break
-            except: continue
-        if not success: response_text = "Coach Offline."
+            except Exception as e: 
+                last_error = str(e)
+                continue
+        
+        if not success: 
+            response_text = f"Coach Offline. (Error: {last_error})"
+            
         st.session_state['gemini_advice'] = response_text
         
     st.markdown(f"""<div class="coach-card"><div class="coach-header"><span>🧙‍♂️</span> AI Coach</div><div>{st.session_state['gemini_advice']}</div></div>""", unsafe_allow_html=True)
