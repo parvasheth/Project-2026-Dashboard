@@ -725,6 +725,48 @@ try:
     Be encouraging but data-driven.
     """
     
+    st.markdown("""
+<style>
+    /* Expander Content & Inputs */
+    .streamlit-expanderContent {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+    div[data-baseweb="textarea"] {
+        background-color: #111111 !important;
+        border: 1px solid #333;
+    }
+    textarea {
+        color: #ffffff !important;
+        caret-color: #00C805;
+    }
+    
+    /* Coach Advice Card */
+    .coach-card {
+        border: 1px solid #7c4dff; /* Deep Soft Purple */
+        background-color: #1a1aff; /* Fallback */
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); /* Deep AI Purple Gradient */
+        border-left: 5px solid #b388ff; /* Bright Accent */
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        color: #e0e0e0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .coach-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #b388ff;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+</style>
+""", unsafe_allow_html=True)
+
     # Auto-Refresh if Context Changed
     if user_manual_context != st.session_state.get('last_context', ''):
         if 'gemini_advice' in st.session_state:
@@ -768,7 +810,16 @@ try:
 
         st.session_state['gemini_advice'] = response_text
         
-    st.info(f"**Coach's Note:** {st.session_state['gemini_advice']}")
+    # Custom Coach Card Display
+    st.markdown(f"""
+    <div class="coach-card">
+        <div class="coach-header">
+            <span>🧙‍♂️</span> Coach's Intelligence
+        </div>
+        <div>{st.session_state['gemini_advice']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if st.button("Refresh Advice"):
         del st.session_state['gemini_advice']
         st.rerun()
