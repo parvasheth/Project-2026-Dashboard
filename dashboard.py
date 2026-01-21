@@ -665,6 +665,30 @@ try:
     GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GENAI_API_KEY)
     
+    # Prepare Context & Input
+    with st.expander("📝 Coach Settings & Context", expanded=False):
+        user_manual_context = st.text_area(
+            "Add context (e.g., 'Feeling tired', 'Travel day', 'Race on Sunday')",
+            placeholder="Enter any specific constraints or feelings here..."
+        )
+    
+    user_context = f"""
+    User: Parva
+    Goals: Maintain #Project2026 daily activity streak.
+    Physiology: RHR 45, MaxHR 197. Use Banister TRIMP model.
+    User Notes: {user_manual_context if user_manual_context else "None provided."}
+    """
+    
+    metrics_context = f"""
+    Current Date: {datetime.date.today()}
+    Current Fitness (CTL): {curr_ctl:.1f}
+    Current Fatigue (ATL): {curr_atl:.1f}
+    Current Form (TSB): {curr_tsb:.1f}
+    Workload Ratio: {load_ratio:.2f} ({status_text})
+    Recent Activities (Last 3):
+    {df_filtered.sort_values('Date', ascending=False).head(3)[['Date', 'Type', 'Distance (km)', 'Duration (min)']].to_string(index=False)}
+    """
+    
     # Prepare Prompt
     prompt = f"""
     You are an expert Sports Physiologist and Running Coach. Review the user's data below:
