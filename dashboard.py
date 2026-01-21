@@ -702,6 +702,12 @@ try:
     Be encouraging but data-driven.
     """
     
+    # Auto-Refresh if Context Changed
+    if user_manual_context != st.session_state.get('last_context', ''):
+        if 'gemini_advice' in st.session_state:
+            del st.session_state['gemini_advice']
+        st.session_state['last_context'] = user_manual_context
+    
     # Generate (Cache result for session to save calls?)
     if 'gemini_advice' not in st.session_state:
         response_text = "Analysis pending..."
