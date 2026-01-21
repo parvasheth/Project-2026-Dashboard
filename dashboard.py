@@ -223,9 +223,9 @@ if df.empty:
 # Using columns to put them side-by-side
 f_col1, f_col2 = st.columns([1, 4])
 with f_col1:
-    selected_year = st.radio("Year", [2026, 2025], horizontal=True, key="year_select")
+    selected_year = st.selectbox("Year", [2026, 2025], key="year_select")
 with f_col2:
-    activity_filter = st.radio("Activity", ["All", "Running", "Strength Training", "Walking/Hiking", "Other"], horizontal=True, key="act_select")
+    activity_filter = st.selectbox("Activity", ["All", "Running", "Strength Training", "Walking/Hiking", "Other"], key="act_select")
 
 # --- Filtering Logic ---
 # 1. Base filter by year for the PAGE VIEW (Feed, etc)
@@ -249,9 +249,60 @@ elif activity_filter == "Other":
 else:
     df_filtered = df_year
 
+# --- Global Physiology Calculations (Moved Up) ---
+# Constants
+RHR = 45
+MAX_HR = 197
+HR_RESERVE = MAX_HR - RHR
+
+def calculate_trimp(duration_min, avg_hr):
+    if avg_hr == 0: return 0
+    # Banister's TRIMP for Men: Duration(min) * HRR_Factor * 0.64 * e^(1.92 * HRR_Factor)
+    hrr_factor = (avg_hr - RHR) / HR_RESERVE
+    trimp = duration_min * hrr_factor * 0.64 * np.exp(1.92 * hrr_factor)
+    return trimp
+
+try:
+    # Prepare Physics Data (Using FULL history df, not filtered by year yet)
+    df_phys = df.copy().sort_values("Date")
+    df_phys['TRIMP'] = df_phys.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
+    
+    # Resample to Daily to account for rest days (0 load)
+    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum().reset_index()
+    
+    # Calculate EWMA
+    df_phys['CTL'] = df_phys['TRIMP'].ewm(span=42, adjust=False).mean() # Fitness
+    df_phys['ATL'] = df_phys['TRIMP'].ewm(span=7, adjust=False).mean()  # Fatigue
+    df_phys['TSB'] = df_phys['CTL'] - df_phys['ATL']                    # Form
+    
+    current_metrics = df_phys.iloc[-1]
+    curr_ctl = current_metrics['CTL']
+    curr_atl = current_metrics['ATL']
+    curr_tsb = current_metrics['TSB']
+    load_ratio = curr_atl / curr_ctl if curr_ctl > 0 else 0
+    
+    # Status Text Logic
+    if 0.8 <= load_ratio <= 1.3:
+        status_text = "Optimal"
+        status_color = "#00C805"
+    elif 1.3 < load_ratio <= 1.5:
+        status_text = "High"
+        status_color = "#FFFF00"
+    elif load_ratio > 1.5:
+        status_text = "Overreach"
+        status_color = "#FF0000"
+    else:
+        status_text = "Recovery"
+        status_color = "#8C8C8C"
+
+except Exception as e:
+    # st.error(f"Error modeling physiology: {e}")
+    curr_ctl, curr_atl, curr_tsb, load_ratio = 0, 0, 0, 0
+    status_text = "N/A"
+
 st.markdown("---")
 
-# --- Top Section: Split View ---
+# --- Top Section: Split View (Stats | Calendar) ---
 col_stats, col_cal = st.columns([1, 1])
 
 # --- LEFT: Year Stats (Dynamic) ---
@@ -313,7 +364,6 @@ with col_stats:
             st.progress(min(strength_count / target_strength, 1.0))
 
 
-# --- RIGHT: Compact Calendar ---
 # --- RIGHT: Interactive Calendar ---
 with col_cal:
     st.subheader("Activity Calendar")
@@ -368,6 +418,8 @@ with col_cal:
             (~df_cal_view['NormalizedType'].str.contains('walking', na=False)) &
             (~df_cal_view['NormalizedType'].str.contains('hiking', na=False))
         ]
+    else:
+        df_cal_view = df_cal_view
     
     active_dates_cal = set(df_cal_view['Date'].dt.day.tolist())
     
@@ -426,231 +478,151 @@ def format_duration_ms(minutes):
 
 st.markdown("---")
 
-# --- MIDDLE: Summary Charts (Strava Style) ---
-st.subheader("Performance Trends")
+# --- LARGE SPLIT SECTION: Trends (Left) vs Training Status (Right) ---
+col_trends, col_status = st.columns([1, 1])
 
-# Timeframe Tabs
-t1, t2, t3, t4, t5, t6 = st.tabs(["Last 7 Days", "Last 30 Days", "Last 3 Months", "Last 6 Months", "Last Year", "YTD"])
+# ==========================================
+# LEFT COLUMN: PERFORMANCE TRENDS
+# ==========================================
+with col_trends:
+    st.subheader("Performance Trends")
+    # Timeframe Tabs
+    t1, t2, t3, t4, t5, t6 = st.tabs(["7D", "30D", "3M", "6M", "1Y", "YTD"])
 
-def render_summary_chart(days_lookback=None, is_ytd=False):
-    end_date = datetime.datetime.now()
-    if is_ytd:
-        start_date = datetime.datetime(end_date.year, 1, 1)
-    else:
-        start_date = end_date - datetime.timedelta(days=days_lookback)
-    
-    # 1. Filter by Activity Type (Global)
-    if activity_filter == "Running":
-        df_trend = df[df['NormalizedType'] == 'running']
-    elif activity_filter == "Strength Training":
-        df_trend = df[df['NormalizedType'].str.contains('strength', na=False)]
-    elif activity_filter == "Walking/Hiking":
-        df_trend = df[df['NormalizedType'].str.contains('walking', na=False) | df['NormalizedType'].str.contains('hiking', na=False)]
-    elif activity_filter == "Other":
-        df_trend = df[
-            (~df['NormalizedType'].str.contains('running', na=False)) & 
-            (~df['NormalizedType'].str.contains('strength', na=False)) &
-            (~df['NormalizedType'].str.contains('walking', na=False)) &
-            (~df['NormalizedType'].str.contains('hiking', na=False))
-        ]
-    else:
-        df_trend = df.copy()
-
-    # 2. Filter by Timeframe
-    mask = (df_trend['Date'] >= start_date) & (df_trend['Date'] <= end_date)
-    df_trend_final = df_trend.loc[mask].copy()
-
-    if df_trend_final.empty:
-        st.info("No activities in this timeframe.")
-        return
-
-    # 3. Aggregate
-    if days_lookback and days_lookback <= 14:
-        freq = 'D'
-    elif days_lookback and days_lookback <= 31: 
-        freq = 'D'
-    else:
-        freq = 'W-MON'
-
-    df_trend_final['Period'] = df_trend_final['Date'].dt.to_period(freq).apply(lambda r: r.start_time)
-
-    # 4. Metrics
-    if activity_filter in ["Running", "Walking/Hiking", "All"]:
-        # Show Distance
-        agg = df_trend_final.groupby('Period')['Distance (km)'].sum().reset_index()
-        y_col = 'Distance (km)'
-        y_title = "Distance (km)"
-        bar_color = '#00C805' # Green
-        line_color = '#FFFFFF' # White Trend
+    def render_summary_chart(days_lookback=None, is_ytd=False):
+        end_date = datetime.datetime.now()
+        if is_ytd:
+            start_date = datetime.datetime(end_date.year, 1, 1)
+        else:
+            start_date = end_date - datetime.timedelta(days=days_lookback)
         
-        # Tooltip format (Numeric)
-        agg['Tooltip'] = agg[y_col].apply(lambda x: f"{x:.1f} km")
-        total_fmt = f"{agg[y_col].sum():.1f} km"
+        # 1. Filter by Activity Type (Global)
+        if activity_filter == "Running":
+            df_trend = df[df['NormalizedType'] == 'running']
+        elif activity_filter == "Strength Training":
+            df_trend = df[df['NormalizedType'].str.contains('strength', na=False)]
+        elif activity_filter == "Walking/Hiking":
+            df_trend = df[df['NormalizedType'].str.contains('walking', na=False) | df['NormalizedType'].str.contains('hiking', na=False)]
+        elif activity_filter == "Other":
+            df_trend = df[
+                (~df['NormalizedType'].str.contains('running', na=False)) & 
+                (~df['NormalizedType'].str.contains('strength', na=False)) &
+                (~df['NormalizedType'].str.contains('walking', na=False)) &
+                (~df['NormalizedType'].str.contains('hiking', na=False))
+            ]
+        else:
+            df_trend = df.copy()
+
+        # 2. Filter by Timeframe
+        mask = (df_trend['Date'] >= start_date) & (df_trend['Date'] <= end_date)
+        df_trend_final = df_trend.loc[mask].copy()
+
+        if df_trend_final.empty:
+            st.info("No activities.")
+            return
+
+        # 3. Aggregate
+        if days_lookback and days_lookback <= 31: 
+            freq = 'D'
+        else:
+            freq = 'W-MON'
+
+        df_trend_final['Period'] = df_trend_final['Date'].dt.to_period(freq).apply(lambda r: r.start_time)
+
+        # 4. Metrics
+        if activity_filter in ["Running", "Walking/Hiking", "All"]:
+            # Show Distance
+            agg = df_trend_final.groupby('Period')['Distance (km)'].sum().reset_index()
+            y_col = 'Distance (km)'
+            y_title = "Distance"
+            bar_color = '#00C805' # Green
+            line_color = '#FFFFFF' # White
+            
+            # Tooltip format (Numeric)
+            agg['Tooltip'] = agg[y_col].apply(lambda x: f"{x:.1f} km")
+            total_fmt = f"{agg[y_col].sum():.1f} km"
+            
+        else:
+            # Show Duration (Hours/Mins)
+            df_trend_final['Duration (hr)'] = df_trend_final['Duration (min)'] / 60
+            agg = df_trend_final.groupby('Period')['Duration (hr)'].sum().reset_index()
+            y_col = 'Duration (hr)'
+            y_title = "Hours"
+            bar_color = '#00C805' 
+            line_color = '#FFFFFF'
+            
+            # Tooltip format (HH:MM)
+            agg['Tooltip'] = agg[y_col].apply(lambda x: format_duration_hm(x * 60))
+            total_mins = agg[y_col].sum() * 60
+            total_fmt = format_duration_hm(total_mins)
+
+        # Create Combo Chart (Bar + Line)
+        fig = go.Figure()
         
-    else:
-        # Show Duration (Hours/Mins)
-        df_trend_final['Duration (hr)'] = df_trend_final['Duration (min)'] / 60
-        agg = df_trend_final.groupby('Period')['Duration (hr)'].sum().reset_index()
-        y_col = 'Duration (hr)'
-        y_title = "Duration (hrs)"
-        # Use a muted green or white/grey for Strength/Other to avoid "Sudden Orange"
-        # Keeping consistent Project 2026 Theme: Green is Good / Active.
-        bar_color = '#00C805' 
-        line_color = '#FFFFFF'
+        # Bar Trace
+        fig.add_trace(go.Bar(
+            x=agg['Period'], 
+            y=agg[y_col],
+            name="Vol",
+            marker_color=bar_color,
+            opacity=0.8,
+            customdata=agg['Tooltip'],
+            hovertemplate="%{customdata}<extra></extra>"
+        ))
         
-        # Tooltip format (HH:MM)
-        agg['Tooltip'] = agg[y_col].apply(lambda x: format_duration_hm(x * 60))
-        total_mins = agg[y_col].sum() * 60
-        total_fmt = format_duration_hm(total_mins)
+        # Line Trace (Trend)
+        fig.add_trace(go.Scatter(
+            x=agg['Period'],
+            y=agg[y_col],
+            name="Trend",
+            mode='lines+markers',
+            line=dict(color=line_color, width=2),
+            marker=dict(size=4, color=line_color),
+            customdata=agg['Tooltip'],
+            hovertemplate="%{customdata}<extra></extra>"
+        ))
 
-    # Create Combo Chart (Bar + Line)
-    fig = go.Figure()
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)", 
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False, title=""),
+            yaxis=dict(showgrid=False, title=y_title),
+            hovermode="x unified",
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=250,
+            showlegend=False
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(f"Total: {total_fmt}")
+
+    with t1: render_summary_chart(days_lookback=7)
+    with t2: render_summary_chart(days_lookback=30)
+    with t3: render_summary_chart(days_lookback=90)
+    with t4: render_summary_chart(days_lookback=180)
+    with t5: render_summary_chart(days_lookback=365)
+    with t6: render_summary_chart(is_ytd=True)
+
+
+# ==========================================
+# RIGHT COLUMN: TRAINING STATUS (PMC)
+# ==========================================
+with col_status:
+    st.subheader("Training Status")
+    # Timeframe Tabs for PMC
+    s1, s2, s3, s4, s5, s6 = st.tabs(["7D", "30D", "3M", "6M", "1Y", "YTD"])
     
-    # Bar Trace
-    fig.add_trace(go.Bar(
-        x=agg['Period'], 
-        y=agg[y_col],
-        name="Volume",
-        marker_color=bar_color,
-        opacity=0.8,
-        customdata=agg['Tooltip'],
-        hovertemplate="%{customdata}<extra></extra>"
-    ))
-    
-    # Line Trace (Trend)
-    fig.add_trace(go.Scatter(
-        x=agg['Period'],
-        y=agg[y_col],
-        name="Trend",
-        mode='lines+markers',
-        line=dict(color=line_color, width=2),
-        marker=dict(size=4, color=line_color),
-        customdata=agg['Tooltip'],
-        hovertemplate="%{customdata}<extra></extra>"
-    ))
-
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)", 
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False, title=""),
-        yaxis=dict(showgrid=False, title=y_title),
-        hovermode="x unified",
-        margin=dict(l=0, r=0, t=10, b=0),
-        height=250,
-        showlegend=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Total: {total_fmt}")
-
-
-with t1: render_summary_chart(days_lookback=7)
-with t2: render_summary_chart(days_lookback=30)
-with t3: render_summary_chart(days_lookback=90)
-with t4: render_summary_chart(days_lookback=180)
-with t5: render_summary_chart(days_lookback=365)
-with t6: render_summary_chart(is_ytd=True)
-
-st.markdown("---")
-
-# --- SECTION: ADVANCED PHYSIOLOGY & AI COACH ---
-st.subheader("Training Status & Advisory")
-
-# 1. TRIMP & PMC Calculations
-# Constants
-RHR = 45
-MAX_HR = 197
-HR_RESERVE = MAX_HR - RHR
-
-def calculate_trimp(duration_min, avg_hr):
-    if avg_hr == 0: return 0
-    # Banister's TRIMP for Men: Duration(min) * HRR_Factor * 0.64 * e^(1.92 * HRR_Factor)
-    hrr_factor = (avg_hr - RHR) / HR_RESERVE
-    trimp = duration_min * hrr_factor * 0.64 * np.exp(1.92 * hrr_factor)
-    return trimp
-
-try:
-    # Prepare Physics Data
-    df_phys = df.copy().sort_values("Date")
-    df_phys['TRIMP'] = df_phys.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
-    
-    # Resample to Daily to account for rest days (0 load)
-    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum().reset_index()
-    
-    # Calculate EWMA
-    df_phys['CTL'] = df_phys['TRIMP'].ewm(span=42, adjust=False).mean() # Fitness
-    df_phys['ATL'] = df_phys['TRIMP'].ewm(span=7, adjust=False).mean()  # Fatigue
-    df_phys['TSB'] = df_phys['CTL'] - df_phys['ATL']                    # Form
-    
-    current_metrics = df_phys.iloc[-1]
-    curr_ctl = current_metrics['CTL']
-    curr_atl = current_metrics['ATL']
-    curr_tsb = current_metrics['TSB']
-    load_ratio = curr_atl / curr_ctl if curr_ctl > 0 else 0
-
-except Exception as e:
-    st.error(f"Error modeling physiology: {e}")
-    curr_ctl, curr_atl, curr_tsb, load_ratio = 0, 0, 0, 0
-
-# 2. Visuals: PMC & Gauge
-col_pmc, col_gauge = st.columns([3, 1])
-
-with col_pmc:
-    # PMC Chart
-    fig_pmc = go.Figure()
-    
-    # Form (Area)
-    fig_pmc.add_trace(go.Scatter(
-        x=df_phys['Date'], y=df_phys['TSB'],
-        name='Form (TSB)',
-        fill='tozeroy',
-        line=dict(color='rgba(255, 255, 0, 0.5)', width=0),
-        fillcolor='rgba(255, 255, 0, 0.2)'
-    ))
-    
-    # Fitness (Line)
-    fig_pmc.add_trace(go.Scatter(
-        x=df_phys['Date'], y=df_phys['CTL'],
-        name='Fitness (CTL)',
-        line=dict(color='#00C805', width=2)
-    ))
-    
-    # Fatigue (Line)
-    fig_pmc.add_trace(go.Scatter(
-        x=df_phys['Date'], y=df_phys['ATL'],
-        name='Fatigue (ATL)',
-        line=dict(color='#FF0080', width=2) # Pink
-    ))
-    
-    fig_pmc.update_layout(
-        template="plotly_dark",
-        title="Performance Management Chart (PMC)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=300,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    st.plotly_chart(fig_pmc, use_container_width=True)
-
-with col_gauge:
+    def render_training_status(days_lookback=None, is_ytd=False):
+        # 1. Gauge (Always shows CURRENT status)
+        # We put it in an expander or just at the top? Let's put it at the top of the function
+        # Actually, let's keep the gauge separate above the chart 
+        pass
+        
+    # Let's render the Gauge statically at top of this column
     # Ratio Gauge
     
-    # Color Logic
-    if 0.8 <= load_ratio <= 1.3:
-        gauge_color = "#00C805" # Optimal
-        status_text = "Optimal"
-    elif 1.3 < load_ratio <= 1.5:
-        gauge_color = "#FFFF00" # Caution
-        status_text = "High"
-    elif load_ratio > 1.5:
-        gauge_color = "#FF0000" # Warning
-        status_text = "Overreach"
-    else:
-        gauge_color = "#8C8C8C" # Detraining
-        status_text = "Recovery"
-        
+    # Color Logic imported from global calc
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = load_ratio,
@@ -658,7 +630,7 @@ with col_gauge:
         number = {'suffix': ""},
         gauge = {
             'axis': {'range': [0, 2], 'tickwidth': 1, 'tickcolor': "white"},
-            'bar': {'color': gauge_color},
+            'bar': {'color': status_color},
             'bgcolor': "rgba(0,0,0,0)",
             'steps': [
                 {'range': [0, 0.8], 'color': '#333'},
@@ -671,162 +643,177 @@ with col_gauge:
     fig_gauge.update_layout(
          template="plotly_dark",
          paper_bgcolor="rgba(0,0,0,0)",
-         margin=dict(l=10, r=10, t=40, b=10),
-         height=250
+         margin=dict(l=20, r=20, t=30, b=10),
+         height=180
     )
     st.plotly_chart(fig_gauge, use_container_width=True)
-    st.caption(f"Status: {status_text}")
+    st.caption(f"Status: {status_text} | FITNESS: {curr_ctl:.0f} | FATIGUE: {curr_atl:.0f} | FORM: {curr_tsb:.0f}")
 
+    def plot_pmc(days_lookback=None, is_ytd=False):
+        end_date = datetime.datetime.now()
+        if is_ytd:
+            start_date = datetime.datetime(end_date.year, 1, 1)
+        else:
+            start_date = end_date - datetime.timedelta(days=days_lookback)
+            
+        # Filter df_phys for the DATE RANGE (for zooming)
+        mask = (df_phys['Date'] >= start_date) & (df_phys['Date'] <= end_date)
+        df_plot = df_phys.loc[mask].copy()
+        
+        if df_plot.empty:
+            st.info("No data.")
+            return
 
-# 3. Gemini Advisory
-import google.generativeai as genai
-
-st.markdown("### 🧠 Gemini Training Adivsor")
-
-# Retrieve API Key safely
-try:
-    GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=GENAI_API_KEY)
-    
-    # Prepare Context & Input
-    with st.expander("📝 Coach Settings & Context", expanded=False):
-        user_manual_context = st.text_area(
-            "Add context (e.g., 'Feeling tired', 'Travel day', 'Race on Sunday')",
-            placeholder="Enter any specific constraints or feelings here..."
+        fig_pmc = go.Figure()
+        
+        # Form (Area)
+        fig_pmc.add_trace(go.Scatter(
+            x=df_plot['Date'], y=df_plot['TSB'],
+            name='Form',
+            fill='tozeroy',
+            line=dict(color='rgba(255, 255, 0, 0.5)', width=0),
+            fillcolor='rgba(255, 255, 0, 0.2)'
+        ))
+        
+        # Fitness (Line)
+        fig_pmc.add_trace(go.Scatter(
+            x=df_plot['Date'], y=df_plot['CTL'],
+            name='Fitness',
+            line=dict(color='#00C805', width=2)
+        ))
+        
+        # Fatigue (Line)
+        fig_pmc.add_trace(go.Scatter(
+            x=df_plot['Date'], y=df_plot['ATL'],
+            name='Fatigue',
+            line=dict(color='#FF0080', width=2) # Pink
+        ))
+        
+        fig_pmc.update_layout(
+            template="plotly_dark",
+            title="PMC History",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=200,
+            showlegend=False,
+            legend=dict(orientation="h", y=1.1)
         )
-    
-    user_context = f"""
-    User: Parva
-    Goals: Maintain #Project2026 daily activity streak.
-    Physiology: RHR 45, MaxHR 197. Use Banister TRIMP model.
-    User Notes: {user_manual_context if user_manual_context else "None provided."}
-    """
-    
-    metrics_context = f"""
-    Current Date: {datetime.date.today()}
-    Current Fitness (CTL): {curr_ctl:.1f}
-    Current Fatigue (ATL): {curr_atl:.1f}
-    Current Form (TSB): {curr_tsb:.1f}
-    Workload Ratio: {load_ratio:.2f} ({status_text})
-    Recent Activities (Last 3):
-    {df_filtered.sort_values('Date', ascending=False).head(3)[['Date', 'Type', 'Distance (km)', 'Duration (min)']].to_string(index=False)}
-    """
-    
-    # Prepare Prompt
-    prompt = f"""
-    You are an expert Sports Physiologist and Running Coach. Review the user's data below:
-    
-    {user_context}
-    
-    {metrics_context}
-    
-    Task: Provide a concise, 2-3 sentence 'Training Focus' for the next 24-48 hours. 
-    Balance the physiological data (TSB/Ratio) with the goal of streak maintenance amidst personal events.
-    Be encouraging but data-driven.
-    """
-    
-    st.markdown("""
-<style>
-    /* Expander Content & Inputs */
-    .streamlit-expanderContent {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-    }
-    div[data-baseweb="textarea"] {
-        background-color: #111111 !important;
-        border: 1px solid #333;
-    }
-    textarea {
-        color: #ffffff !important;
-        caret-color: #00C805;
-    }
-    
-    /* Coach Advice Card */
-    .coach-card {
-        border: 1px solid #7c4dff; /* Deep Soft Purple */
-        background-color: #1a1aff; /* Fallback */
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); /* Deep AI Purple Gradient */
-        border-left: 5px solid #b388ff; /* Bright Accent */
-        padding: 20px;
-        border-radius: 12px;
-        margin-top: 10px;
-        margin-bottom: 10px;
-        color: #e0e0e0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    }
-    .coach-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #b388ff;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-</style>
-""", unsafe_allow_html=True)
+        st.plotly_chart(fig_pmc, use_container_width=True)
 
-    # Auto-Refresh if Context Changed
-    if user_manual_context != st.session_state.get('last_context', ''):
-        if 'gemini_advice' in st.session_state:
-            del st.session_state['gemini_advice']
-        st.session_state['last_context'] = user_manual_context
+    with s1: plot_pmc(days_lookback=7)
+    with s2: plot_pmc(days_lookback=30)
+    with s3: plot_pmc(days_lookback=90)
+    with s4: plot_pmc(days_lookback=180)
+    with s5: plot_pmc(days_lookback=365)
+    with s6: plot_pmc(is_ytd=True)
     
-    # Generate (Cache result for session to save calls?)
-    if 'gemini_advice' not in st.session_state:
-        response_text = "Analysis pending..."
-        
-        # Robust Logic: Try models in order of preference
-        models_to_try = [
-            'gemini-2.5-flash', 
-            'gemini-2.0-flash-001',
-            'gemini-2.0-flash', 
-            'gemini-2.0-flash-lite', 
-            'gemini-1.5-pro',
-            'gemini-1.5-flash'
-        ]
-        success = False
-        execution_logs = []
-        
-        for model_name in models_to_try:
-            try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
-                response_text = response.text
-                success = True
-                break
-            except Exception as e:
-                execution_logs.append(f"{model_name}: {e}")
-                continue
-                
-        if not success:
-            # Debug: List available models
-            try:
-                available = [m.name for m in genai.list_models()]
-                response_text = f"Error: Failed to connect to models.\n\nLogs:\n" + "\n".join(execution_logs) + f"\n\nAvailable on Key:\n{available}"
-            except Exception as e:
-                response_text = f"Critical API Error: {e}\n\nLogs:\n" + "\n".join(execution_logs)
+    # --- GEMINI COACH CARD (Now inside Right Col) ---
+    import google.generativeai as genai
 
-        st.session_state['gemini_advice'] = response_text
+    # Retrieve API Key safely
+    try:
+        GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=GENAI_API_KEY)
         
-    # Custom Coach Card Display
-    st.markdown(f"""
-    <div class="coach-card">
-        <div class="coach-header">
-            <span>🧙‍♂️</span> Coach's Intelligence
-        </div>
-        <div>{st.session_state['gemini_advice']}</div>
-    </div>
+        # Prepare Context & Input
+        with st.expander("📝 Context Input", expanded=False):
+            user_manual_context = st.text_area(
+                "Coach Context",
+                placeholder="E.g. Feeling tired, race coming up...",
+                label_visibility="collapsed"
+            )
+        
+        st.markdown("""
+    <style>
+        /* Coach Advice Card */
+        .coach-card {
+            border: 1px solid #7c4dff; /* Deep Soft Purple */
+            background-color: #1a1aff; /* Fallback */
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); /* Deep AI Purple Gradient */
+            border-left: 5px solid #b388ff; /* Bright Accent */
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 5px;
+            color: #e0e0e0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-size: 0.95rem;
+        }
+        .coach-header {
+            font-size: 1.0rem;
+            font-weight: 600;
+            color: #b388ff;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
     """, unsafe_allow_html=True)
+        
+        # User & Metrics Context Construction
+        user_context_str = f"""
+        User: Parva
+        Goals: Maintain #Project2026 daily activity streak.
+        Physiology: RHR 45, MaxHR 197. Use Banister TRIMP model.
+        User Notes: {user_manual_context if user_manual_context else "None provided."}
+        """
+        
+        metrics_context_str = f"""
+        Date: {datetime.date.today()}
+        Fitness(CTL): {curr_ctl:.1f}, Fatigue(ATL): {curr_atl:.1f}, Form(TSB): {curr_tsb:.1f}
+        Ratio: {load_ratio:.2f} ({status_text})
+        Recent Activity: {df_filtered.sort_values('Date', ascending=False).head(3)['Type'].tolist()}
+        """
+        
+        prompt = f"""
+        Act as an expert Running Coach. Review:
+        {user_context_str}
+        {metrics_context_str}
+        Task: Provide a concise (2 sentences max) training focus for the next 24h. Be specific.
+        """
 
-    if st.button("Refresh Advice"):
-        del st.session_state['gemini_advice']
-        st.rerun()
+        # Auto-Refresh if Context Changed
+        if user_manual_context != st.session_state.get('last_context', ''):
+            if 'gemini_advice' in st.session_state:
+                del st.session_state['gemini_advice']
+            st.session_state['last_context'] = user_manual_context
+        
+        # Generate
+        if 'gemini_advice' not in st.session_state:
+            response_text = "Thinking..."
+            models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash', 'gemini-1.5-flash']
+            
+            success = False
+            for m in models_to_try:
+                try:
+                    model = genai.GenerativeModel(m)
+                    response = model.generate_content(prompt)
+                    response_text = response.text
+                    success = True
+                    break
+                except:
+                    continue
+            
+            if not success: response_text = "Coach Offline."
+            st.session_state['gemini_advice'] = response_text
+            
+        # Custom Coach Card Display
+        st.markdown(f"""
+        <div class="coach-card">
+            <div class="coach-header">
+                <span>🧙‍♂️</span> Coach
+            </div>
+            <div>{st.session_state['gemini_advice']}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-except Exception as e:
-    st.warning(f"Gemini AI Coach Error: {e}")
-    st.info("Check Streamlit Secrets for `GEMINI_API_KEY`.")
+        if st.button("Refresh", key="btn_refresh_advice"):
+            del st.session_state['gemini_advice']
+            st.rerun()
+
+    except Exception as e:
+        st.caption(f"Coach Error: {e}")
 
 
 st.markdown("---")
