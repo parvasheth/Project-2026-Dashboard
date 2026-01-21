@@ -708,7 +708,8 @@ try:
         st.rerun()
         
 except Exception as e:
-    st.warning("Gemini AI Coach not configured. Please add `GEMINI_API_KEY` to Streamlit Secrets.")
+    st.warning(f"Gemini AI Coach Error: {e}")
+    st.info("Check Streamlit Secrets for `GEMINI_API_KEY`.")
 
 
 st.markdown("---")
