@@ -151,9 +151,32 @@ st.markdown("""
         .feed-title { font-size: 0.95rem !important; }
         .feed-stats { font-size: 0.85rem !important; }
         
-        /* 6. General headers */
+        /* 7. General headers */
         h1 { font-size: 1.6rem !important; }
         h3 { font-size: 1.2rem !important; }
+    }
+    
+    /* --- BUTTON STYLING --- */
+    /* Primary Buttons (Refresh, Next/Prev) */
+    div[data-testid="stButton"] > button {
+        background-color: #111111;
+        color: #00C805;
+        border: 1px solid #333333;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    div[data-testid="stButton"] > button:hover {
+        border-color: #00C805;
+        color: #FFFFFF;
+        background-color: #00C80520;
+    }
+    
+    /* Expander Header */
+    .streamlit-expanderHeader {
+        background-color: #111111;
+        color: #FFFFFF;
+        border: 1px solid #333333;
+        border-radius: 8px;
     }
     
 </style>
