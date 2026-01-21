@@ -378,6 +378,7 @@ col_train_L, col_train_R = st.columns([2, 1])
 
 # --- Training Left: PMC Chart ---
 with col_train_L:
+    st.subheader("Fitness, Fatigue and Form Chart")
     # Reordered Tabs: 1Y First
     s1, s2, s3, s4, s5, s6 = st.tabs(["1Y", "YTD", "6M", "3M", "30D", "7D"])
     
@@ -403,7 +404,7 @@ with col_train_L:
         # Fatigue
         fig_pmc.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['ATL'], name='Fatigue', line=dict(color='#FF0080', width=2)))
         
-        fig_pmc.update_layout(template="plotly_dark", title="PMC History", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=True, legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"))
+        fig_pmc.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=True, legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_pmc, use_container_width=True)
 
     with s1: plot_pmc(days_lookback=365)
