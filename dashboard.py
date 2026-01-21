@@ -182,6 +182,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Helper Functions (Global) ---
+def format_duration_hm(minutes):
+    """Formats minutes into Xh Ym or Zm"""
+    if minutes < 60:
+        return f"{int(minutes)}m"
+    hours = int(minutes // 60)
+    mins = int(minutes % 60)
+    return f"{hours}h {mins:02d}m"
+
+def format_duration_ms(minutes):
+    """Formats minutes into M:S (for pace)"""
+    mins = int(minutes)
+    secs = int((minutes - mins) * 60)
+    return f"{mins}:{secs:02d}"
+
 # --- Data Loading ---
 def load_data():
     try:
