@@ -233,7 +233,17 @@ def load_data():
 df = load_data()
 
 # --- Header ---
-st.title("Parva's Project 2026")
+# --- Header ---
+st.markdown("""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="font-size: 3rem; margin-bottom: 0; background: -webkit-linear-gradient(45deg, #ffffff, #00C805); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            Parva's Project 2026
+        </h1>
+        <a href="https://instagram.com/the_working_athlete" target="_blank" style="color: #8C8C8C; text-decoration: none; font-size: 1.1rem; border-bottom: 1px dotted #8C8C8C;">
+            @the_working_athlete
+        </a>
+    </div>
+""", unsafe_allow_html=True)
 
 if df.empty:
     st.warning("No data found. Please run the sync script.")
