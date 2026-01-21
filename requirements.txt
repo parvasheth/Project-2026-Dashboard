@@ -8,3 +8,4 @@ python-dotenv
 gspread
 oauth2client
 st-gsheets-connection
+google-generativeai

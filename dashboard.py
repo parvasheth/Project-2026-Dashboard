@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import folium
@@ -527,6 +528,188 @@ with t3: render_summary_chart(days_lookback=90)
 with t4: render_summary_chart(days_lookback=180)
 with t5: render_summary_chart(days_lookback=365)
 with t6: render_summary_chart(is_ytd=True)
+
+st.markdown("---")
+
+# --- SECTION: ADVANCED PHYSIOLOGY & AI COACH ---
+st.subheader("Training Status & Advisory")
+
+# 1. TRIMP & PMC Calculations
+# Constants
+RHR = 45
+MAX_HR = 197
+HR_RESERVE = MAX_HR - RHR
+
+def calculate_trimp(duration_min, avg_hr):
+    if avg_hr == 0: return 0
+    # Banister's TRIMP for Men: Duration(min) * HRR_Factor * 0.64 * e^(1.92 * HRR_Factor)
+    hrr_factor = (avg_hr - RHR) / HR_RESERVE
+    trimp = duration_min * hrr_factor * 0.64 * np.exp(1.92 * hrr_factor)
+    return trimp
+
+try:
+    # Prepare Physics Data
+    df_phys = df.copy().sort_values("Date")
+    df_phys['TRIMP'] = df_phys.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
+    
+    # Resample to Daily to account for rest days (0 load)
+    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum().reset_index()
+    
+    # Calculate EWMA
+    df_phys['CTL'] = df_phys['TRIMP'].ewm(span=42, adjust=False).mean() # Fitness
+    df_phys['ATL'] = df_phys['TRIMP'].ewm(span=7, adjust=False).mean()  # Fatigue
+    df_phys['TSB'] = df_phys['CTL'] - df_phys['ATL']                    # Form
+    
+    current_metrics = df_phys.iloc[-1]
+    curr_ctl = current_metrics['CTL']
+    curr_atl = current_metrics['ATL']
+    curr_tsb = current_metrics['TSB']
+    load_ratio = curr_atl / curr_ctl if curr_ctl > 0 else 0
+
+except Exception as e:
+    st.error(f"Error modeling physiology: {e}")
+    curr_ctl, curr_atl, curr_tsb, load_ratio = 0, 0, 0, 0
+
+# 2. Visuals: PMC & Gauge
+col_pmc, col_gauge = st.columns([3, 1])
+
+with col_pmc:
+    # PMC Chart
+    fig_pmc = go.Figure()
+    
+    # Form (Area)
+    fig_pmc.add_trace(go.Scatter(
+        x=df_phys['Date'], y=df_phys['TSB'],
+        name='Form (TSB)',
+        fill='tozeroy',
+        line=dict(color='rgba(255, 255, 0, 0.5)', width=0),
+        fillcolor='rgba(255, 255, 0, 0.2)'
+    ))
+    
+    # Fitness (Line)
+    fig_pmc.add_trace(go.Scatter(
+        x=df_phys['Date'], y=df_phys['CTL'],
+        name='Fitness (CTL)',
+        line=dict(color='#00C805', width=2)
+    ))
+    
+    # Fatigue (Line)
+    fig_pmc.add_trace(go.Scatter(
+        x=df_phys['Date'], y=df_phys['ATL'],
+        name='Fatigue (ATL)',
+        line=dict(color='#FF0080', width=2) # Pink
+    ))
+    
+    fig_pmc.update_layout(
+        template="plotly_dark",
+        title="Performance Management Chart (PMC)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=30, b=0),
+        height=300,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig_pmc, use_container_width=True)
+
+with col_gauge:
+    # Ratio Gauge
+    
+    # Color Logic
+    if 0.8 <= load_ratio <= 1.3:
+        gauge_color = "#00C805" # Optimal
+        status_text = "Optimal"
+    elif 1.3 < load_ratio <= 1.5:
+        gauge_color = "#FFFF00" # Caution
+        status_text = "High"
+    elif load_ratio > 1.5:
+        gauge_color = "#FF0000" # Warning
+        status_text = "Overreach"
+    else:
+        gauge_color = "#8C8C8C" # Detraining
+        status_text = "Recovery"
+        
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = load_ratio,
+        title = {'text': "Workload Ratio (ATL/CTL)"},
+        number = {'suffix': ""},
+        gauge = {
+            'axis': {'range': [0, 2], 'tickwidth': 1, 'tickcolor': "white"},
+            'bar': {'color': gauge_color},
+            'bgcolor': "rgba(0,0,0,0)",
+            'steps': [
+                {'range': [0, 0.8], 'color': '#333'},
+                {'range': [0.8, 1.3], 'color': '#113311'},
+                {'range': [1.3, 1.5], 'color': '#333311'},
+                {'range': [1.5, 2.0], 'color': '#331111'}
+            ],
+        }
+    ))
+    fig_gauge.update_layout(
+         template="plotly_dark",
+         paper_bgcolor="rgba(0,0,0,0)",
+         margin=dict(l=10, r=10, t=40, b=10),
+         height=250
+    )
+    st.plotly_chart(fig_gauge, use_container_width=True)
+    st.caption(f"Status: {status_text}")
+
+
+# 3. Gemini Advisory
+import google.generativeai as genai
+
+st.markdown("### 🧠 Gemini Training Adivsor")
+
+# Retrieve API Key safely
+try:
+    GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=GENAI_API_KEY)
+    
+    # Prepare Context
+    model = genai.GenerativeModel('gemini-1.5-pro')
+    
+    user_context = """
+    User: Parva
+    Goals: Maintain #Project2026 daily activity streak.
+    Constraints: High-priority personal events (Wedding/Schedule). [PASTE YOUR SCHEDULE/WEDDING DATES HERE].
+    Physiology: RHR 45, MaxHR 197. Use Banister TRIMP model.
+    """
+    
+    metrics_context = f"""
+    Current Date: {datetime.date.today()}
+    Current Fitness (CTL): {curr_ctl:.1f}
+    Current Fatigue (ATL): {curr_atl:.1f}
+    Current Form (TSB): {curr_tsb:.1f}
+    Workload Ratio: {load_ratio:.2f} ({status_text})
+    Recent Activities (Last 3):
+    {df_filtered.sort_values('Date', ascending=False).head(3)[['Date', 'Type', 'Distance (km)', 'Duration (min)']].to_string(index=False)}
+    """
+    
+    prompt = f"""
+    You are an expert Sports Physiologist and Running Coach. Review the user's data below:
+    
+    {user_context}
+    
+    {metrics_context}
+    
+    Task: Provide a concise, 2-3 sentence 'Training Focus' for the next 24-48 hours. 
+    Balance the physiological data (TSB/Ratio) with the goal of streak maintenance amidst personal events.
+    Be encouraging but data-driven.
+    """
+    
+    # Generate (Cache result for session to save calls?)
+    if 'gemini_advice' not in st.session_state:
+        response = model.generate_content(prompt)
+        st.session_state['gemini_advice'] = response.text
+        
+    st.info(f"**Coach's Note:** {st.session_state['gemini_advice']}")
+    if st.button("Refresh Advice"):
+        del st.session_state['gemini_advice']
+        st.rerun()
+        
+except Exception as e:
+    st.warning("Gemini AI Coach not configured. Please add `GEMINI_API_KEY` to Streamlit Secrets.")
+
 
 st.markdown("---")
 
