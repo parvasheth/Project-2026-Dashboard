@@ -666,7 +666,7 @@ try:
     genai.configure(api_key=GENAI_API_KEY)
     
     # Prepare Context
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     user_context = """
     User: Parva
