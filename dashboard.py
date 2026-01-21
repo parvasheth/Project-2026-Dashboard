@@ -359,7 +359,8 @@ col_train_L, col_train_R = st.columns([2, 1])
 
 # --- Training Left: PMC Chart ---
 with col_train_L:
-    s1, s2, s3, s4, s5, s6 = st.tabs(["7D", "30D", "3M", "6M", "1Y", "YTD"])
+    # Reordered Tabs: 1Y First
+    s1, s2, s3, s4, s5, s6 = st.tabs(["1Y", "YTD", "6M", "3M", "30D", "7D"])
     
     def plot_pmc(days_lookback=None, is_ytd=False):
         end_date = datetime.datetime.now()
@@ -386,23 +387,24 @@ with col_train_L:
         fig_pmc.update_layout(template="plotly_dark", title="PMC History", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=False, legend=dict(orientation="h", y=1.1))
         st.plotly_chart(fig_pmc, use_container_width=True)
 
-    with s1: plot_pmc(days_lookback=7)
-    with s2: plot_pmc(days_lookback=30)
-    with s3: plot_pmc(days_lookback=90)
-    with s4: plot_pmc(days_lookback=180)
-    with s5: plot_pmc(days_lookback=365)
-    with s6: plot_pmc(is_ytd=True)
+    with s1: plot_pmc(days_lookback=365)
+    with s2: plot_pmc(is_ytd=True)
+    with s3: plot_pmc(days_lookback=180)
+    with s4: plot_pmc(days_lookback=90)
+    with s5: plot_pmc(days_lookback=30)
+    with s6: plot_pmc(days_lookback=7)
 
 # --- Training Right: Gauge ---
 with col_train_R:
-    # 1. Gauge
+    # 1. Gauge - Increased Height
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = load_ratio,
         title = {'text': "Workload Ratio"},
         gauge = {'axis': {'range': [0, 2]}, 'bar': {'color': status_color}, 'bgcolor': "rgba(0,0,0,0)", 'steps': [{'range': [0, 0.8], 'color': '#333'}, {'range': [0.8, 1.3], 'color': '#113311'}, {'range': [1.3, 1.5], 'color': '#333311'}, {'range': [1.5, 2.0], 'color': '#331111'}]}
     ))
-    fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=20, r=20, t=30, b=10), height=150)
+    # Increased height to 280 to match PMC better
+    fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=15, r=15, t=50, b=10), height=280)
     st.plotly_chart(fig_gauge, use_container_width=True)
     st.caption(f"Status: {status_text} | CTL: {curr_ctl:.0f} | TSB: {curr_tsb:.0f}")
 
@@ -447,7 +449,8 @@ with col_row2_L:
 # --- RIGHT: Trends ---
 with col_row2_R:
     st.subheader("Performance Trends")
-    t1, t2, t3, t4, t5, t6 = st.tabs(["7D", "30D", "3M", "6M", "1Y", "YTD"])
+    # Reordered Tabs: 1Y First
+    t1, t2, t3, t4, t5, t6 = st.tabs(["1Y", "YTD", "6M", "3M", "30D", "7D"])
 
     def format_duration_hm(minutes):
         if minutes < 60: return f"{int(minutes)}m"
@@ -492,12 +495,12 @@ with col_row2_R:
         st.plotly_chart(fig, use_container_width=True)
         st.caption(f"Total: {total_fmt}")
 
-    with t1: render_summary_chart(days_lookback=7)
-    with t2: render_summary_chart(days_lookback=30)
-    with t3: render_summary_chart(days_lookback=90)
-    with t4: render_summary_chart(days_lookback=180)
-    with t5: render_summary_chart(days_lookback=365)
-    with t6: render_summary_chart(is_ytd=True)
+    with t1: render_summary_chart(days_lookback=365)
+    with t2: render_summary_chart(is_ytd=True)
+    with t3: render_summary_chart(days_lookback=180)
+    with t4: render_summary_chart(days_lookback=90)
+    with t5: render_summary_chart(days_lookback=30)
+    with t6: render_summary_chart(days_lookback=7)
 
 st.markdown("---")
 
