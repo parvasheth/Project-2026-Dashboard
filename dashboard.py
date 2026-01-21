@@ -586,16 +586,70 @@ with col_row3_R:
     cal_obj = calendar.Calendar(firstweekday=0)
     month_days = cal_obj.monthdayscalendar(view_year, view_month)
     
-    cols = st.columns(7)
-    for i, d in enumerate(["M", "T", "W", "T", "F", "S", "S"]): cols[i].markdown(f"<div style='text-align:center;color:#888;font-size:0.8rem;'>{d}</div>", unsafe_allow_html=True)
+    # CSS Grid Style (Injected locally for scoping)
+    st.markdown("""
+    <style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-top: 10px;
+    }
+    .cal-header {
+        text-align: center;
+        color: #888;
+        font-size: 0.8rem;
+        padding-bottom: 4px;
+    }
+    .cal-cell {
+        text-align: center;
+        padding: 8px;
+        border-radius: 6px;
+        background-color: #1a1a1a;
+        color: #555;
+        font-size: 0.9rem;
+    }
+    .cal-cell.active {
+        background-color: #00C80530;
+        color: #ffffff;
+        border: 1px solid #00C805;
+        font-weight: bold;
+    }
+    .cal-cell.empty {
+        background-color: transparent;
+    }
     
+    @media (max-width: 640px) {
+        .calendar-grid { gap: 2px; }
+        .cal-cell { padding: 4px; font-size: 0.75rem; min-height: 30px; display: flex; align-items: center; justify-content: center; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # HTML Generator
+    html_content = '<div class="calendar-grid">'
+    
+    # Headers
+    for d in ["M", "T", "W", "T", "F", "S", "S"]:
+        html_content += f'<div class="cal-header">{d}</div>'
+        
+    # Days
     for week in month_days:
-        cols = st.columns(7)
-        for i, d in enumerate(week):
-            if d == 0: cols[i].write("")
+        for day in week:
+            if day == 0:
+                html_content += '<div class="cal-cell empty"></div>'
             else:
-                css = "fire-grid-cell fire-active" if d in active_dates else "fire-grid-cell"
-                cols[i].markdown(f"<div class='{css}'>{d}{' 🔥' if d in active_dates else ''}</div>", unsafe_allow_html=True)
+                is_active = day in active_dates
+                css_class = "cal-cell active" if is_active else "cal-cell"
+                # Add fire icon only if active
+                content = f"{day}{' 🔥' if is_active else ''}"
+                # On mobile, the fire icon might force stacking if not careful. 
+                # Let's keep it simply "Day" and maybe a color dot? 
+                # Preserving the fire for now but CSS handles wrapping if needed.
+                html_content += f'<div class="{css_class}">{content}</div>'
+    
+    html_content += '</div>'
+    st.markdown(html_content, unsafe_allow_html=True)
 
 st.markdown("---")
 
