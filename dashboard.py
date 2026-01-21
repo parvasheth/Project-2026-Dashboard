@@ -665,26 +665,7 @@ try:
     GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GENAI_API_KEY)
     
-    # Prepare Context
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    user_context = """
-    User: Parva
-    Goals: Maintain #Project2026 daily activity streak.
-    Constraints: High-priority personal events (Wedding/Schedule). [PASTE YOUR SCHEDULE/WEDDING DATES HERE].
-    Physiology: RHR 45, MaxHR 197. Use Banister TRIMP model.
-    """
-    
-    metrics_context = f"""
-    Current Date: {datetime.date.today()}
-    Current Fitness (CTL): {curr_ctl:.1f}
-    Current Fatigue (ATL): {curr_atl:.1f}
-    Current Form (TSB): {curr_tsb:.1f}
-    Workload Ratio: {load_ratio:.2f} ({status_text})
-    Recent Activities (Last 3):
-    {df_filtered.sort_values('Date', ascending=False).head(3)[['Date', 'Type', 'Distance (km)', 'Duration (min)']].to_string(index=False)}
-    """
-    
+    # Prepare Prompt
     prompt = f"""
     You are an expert Sports Physiologist and Running Coach. Review the user's data below:
     
@@ -699,14 +680,37 @@ try:
     
     # Generate (Cache result for session to save calls?)
     if 'gemini_advice' not in st.session_state:
-        response = model.generate_content(prompt)
-        st.session_state['gemini_advice'] = response.text
+        response_text = "Analysis pending..."
+        
+        # Robust Logic: Try models in order of preference
+        models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        success = False
+        
+        for model_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                response_text = response.text
+                success = True
+                break
+            except Exception:
+                continue
+                
+        if not success:
+            # Debug: List available models
+            try:
+                available = [m.name for m in genai.list_models()]
+                response_text = f"Error: Could not connect to any preferred models. Available models on your key: {available}"
+            except Exception as e:
+                response_text = f"Critical API Error: {e}"
+
+        st.session_state['gemini_advice'] = response_text
         
     st.info(f"**Coach's Note:** {st.session_state['gemini_advice']}")
     if st.button("Refresh Advice"):
         del st.session_state['gemini_advice']
         st.rerun()
-        
+
 except Exception as e:
     st.warning(f"Gemini AI Coach Error: {e}")
     st.info("Check Streamlit Secrets for `GEMINI_API_KEY`.")
