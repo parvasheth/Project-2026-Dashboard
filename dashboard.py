@@ -339,9 +339,22 @@ try:
     # CSS for Coach Card
     st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
 
-    user_context_str = f"User: Parva. Goals: Maintain #Project2026 streak. Physiology: RHR 45, MaxHR 197. Notes: {user_manual_context or 'None'}"
-    metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
-    prompt = f"Act as an expert Coach. Review:\n{user_context_str}\n{metrics_context_str}\nTask: 2 sentence training focus for next 24h."
+    project_goals = "PROJECT 2026 GOALS: 2026km Running, 26 Half Marathons, 104 Strength Sessions, 200+ Active Days."
+    user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {user_manual_context or 'None'}."
+    metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text})."
+    
+    prompt = f"""
+    Act as an elite endurance coach for Parva. 
+    CONTEXT: {project_goals}
+    {user_context_str}
+    {metrics_context_str}
+    
+    TASK: Provide a concise, motivating response (max 3-4 sentences total) structured as:
+    1. ⚡ Short Term: Specific focus for today/tomorrow based on TSB/Fatigue.
+    2. 🔭 Long Term: How this fits the 2026km/HM goals.
+    
+    Keep it punchy. If TSB is very negative, mandate rest. If TSB is high positive, push for volume.
+    """
 
     # Logic:
     # 1. If context changed, we used to manually clear. 
