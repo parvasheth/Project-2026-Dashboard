@@ -249,36 +249,6 @@ if df.empty:
     st.warning("No data found. Please run the sync script.")
     st.stop()
 
-# --- Filters (Top) ---
-# Using columns to put them side-by-side
-f_col1, f_col2 = st.columns([1, 4])
-with f_col1:
-    selected_year = st.selectbox("Year", [2026, 2025], key="year_select")
-with f_col2:
-    activity_filter = st.selectbox("Activity", ["All", "Running", "Strength Training", "Walking/Hiking", "Other"], key="act_select")
-
-# --- Filtering Logic ---
-# 1. Base filter by year for the PAGE VIEW (Feed, etc)
-df_year = df[df['Date'].dt.year == selected_year]
-
-# 2. Activity Filter applying to df_year
-if activity_filter == "Running":
-    df_filtered = df_year[df_year['NormalizedType'] == 'running']
-elif activity_filter == "Strength Training":
-    df_filtered = df_year[df_year['NormalizedType'].str.contains('strength', na=False)]
-elif activity_filter == "Walking/Hiking":
-    df_filtered = df_year[df_year['NormalizedType'].str.contains('walking', na=False) | df_year['NormalizedType'].str.contains('hiking', na=False)]
-elif activity_filter == "Other":
-    # Everything NOT running, strength, walking, or hiking
-    df_filtered = df_year[
-        (~df_year['NormalizedType'].str.contains('running', na=False)) & 
-        (~df_year['NormalizedType'].str.contains('strength', na=False)) &
-        (~df_year['NormalizedType'].str.contains('walking', na=False)) &
-        (~df_year['NormalizedType'].str.contains('hiking', na=False))
-    ]
-else:
-    df_filtered = df_year
-
 # --- Global Physiology Calculations ---
 RHR = 45
 MAX_HR = 197
@@ -325,9 +295,9 @@ except Exception as e:
 st.markdown("---")
 
 # ==========================================
-# ROW 1: TRAINING STATUS & AI COACH
+# ROW 1: TRAINING STATUS
 # ==========================================
-st.subheader("Training Status & Advisory")
+st.subheader("Training Status")
 
 # --- 1. AI Coach (Full Width) ---
 import google.generativeai as genai
@@ -370,7 +340,7 @@ try:
     st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
 
     user_context_str = f"User: Parva. Goals: Maintain #Project2026 streak. Physiology: RHR 45, MaxHR 197. Notes: {user_manual_context or 'None'}"
-    metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df_filtered.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
+    metrics_context_str = f"Date: {datetime.date.today()}. CTL: {curr_ctl:.1f}, ATL: {curr_atl:.1f}, TSB: {curr_tsb:.1f}. Ratio: {load_ratio:.2f} ({status_text}). Recent: {df.sort_values('Date', ascending=False).head(3)['Type'].tolist()}"
     prompt = f"Act as an expert Coach. Review:\n{user_context_str}\n{metrics_context_str}\nTask: 2 sentence training focus for next 24h."
 
     # Logic:
