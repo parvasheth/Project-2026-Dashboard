@@ -430,6 +430,36 @@ with col_train_R:
 st.markdown("---")
 
 # ==========================================
+# FILTERS (Moved Below Row 1)
+# ==========================================
+f_col1, f_col2 = st.columns([1, 4])
+with f_col1:
+    selected_year = st.selectbox("Year", [2026, 2025], key="year_select")
+with f_col2:
+    activity_filter = st.selectbox("Activity", ["All", "Running", "Strength Training", "Walking/Hiking", "Other"], key="act_select")
+
+# --- Filtering Logic ---
+# 1. Base filter by year
+df_year = df[df['Date'].dt.year == selected_year]
+
+# 2. Activity Filter
+if activity_filter == "Running":
+    df_filtered = df_year[df_year['NormalizedType'] == 'running']
+elif activity_filter == "Strength Training":
+    df_filtered = df_year[df_year['NormalizedType'].str.contains('strength', na=False)]
+elif activity_filter == "Walking/Hiking":
+    df_filtered = df_year[df_year['NormalizedType'].str.contains('walking', na=False) | df_year['NormalizedType'].str.contains('hiking', na=False)]
+elif activity_filter == "Other":
+    df_filtered = df_year[
+        (~df_year['NormalizedType'].str.contains('running', na=False)) & 
+        (~df_year['NormalizedType'].str.contains('strength', na=False)) &
+        (~df_year['NormalizedType'].str.contains('walking', na=False)) &
+        (~df_year['NormalizedType'].str.contains('hiking', na=False))
+    ]
+else:
+    df_filtered = df_year
+
+# ==========================================
 # ROW 2: PROGRESS (LEFT) | TRENDS (RIGHT)
 # ==========================================
 col_row2_L, col_row2_R = st.columns([1, 1])
