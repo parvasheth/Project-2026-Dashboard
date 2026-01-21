@@ -707,8 +707,16 @@ try:
         response_text = "Analysis pending..."
         
         # Robust Logic: Try models in order of preference
-        models_to_try = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
+        models_to_try = [
+            'gemini-2.5-flash', 
+            'gemini-2.0-flash-001',
+            'gemini-2.0-flash', 
+            'gemini-2.0-flash-lite', 
+            'gemini-1.5-pro',
+            'gemini-1.5-flash'
+        ]
         success = False
+        execution_logs = []
         
         for model_name in models_to_try:
             try:
@@ -717,16 +725,17 @@ try:
                 response_text = response.text
                 success = True
                 break
-            except Exception:
+            except Exception as e:
+                execution_logs.append(f"{model_name}: {e}")
                 continue
                 
         if not success:
             # Debug: List available models
             try:
                 available = [m.name for m in genai.list_models()]
-                response_text = f"Error: Could not connect to any preferred models. Available models on your key: {available}"
+                response_text = f"Error: Failed to connect to models.\n\nLogs:\n" + "\n".join(execution_logs) + f"\n\nAvailable on Key:\n{available}"
             except Exception as e:
-                response_text = f"Critical API Error: {e}"
+                response_text = f"Critical API Error: {e}\n\nLogs:\n" + "\n".join(execution_logs)
 
         st.session_state['gemini_advice'] = response_text
         
