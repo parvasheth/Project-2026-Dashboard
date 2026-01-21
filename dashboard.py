@@ -403,7 +403,7 @@ with col_train_L:
         # Fatigue
         fig_pmc.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['ATL'], name='Fatigue', line=dict(color='#FF0080', width=2)))
         
-        fig_pmc.update_layout(template="plotly_dark", title="PMC History", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=False, legend=dict(orientation="h", y=1.1))
+        fig_pmc.update_layout(template="plotly_dark", title="PMC History", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=True, legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_pmc, use_container_width=True)
 
     with s1: plot_pmc(days_lookback=365)
