@@ -344,16 +344,45 @@ def ask_gemini_coach(prompt_text):
     except Exception as outer_e:
         raise outer_e
 
-try:
+    import json
+    import os
+    
+    CONTEXT_FILE = "coach_context.json"
+    
+    def load_context():
+        if os.path.exists(CONTEXT_FILE):
+            try:
+                with open(CONTEXT_FILE, "r") as f: return json.load(f).get("context", "")
+            except: return ""
+        return ""
+
+    def save_context():
+        # Callback to save context
+        ctx = st.session_state.get("coach_input", "")
+        with open(CONTEXT_FILE, "w") as f:
+            json.dump({"context": ctx}, f)
+
+    # Initialize context in session state if not present
+    if "coach_default_val" not in st.session_state:
+        st.session_state.coach_default_val = load_context()
+
     with st.expander("📝 AI Coach Settings & Context", expanded=False):
-        user_manual_context = st.text_area("Coach Context", placeholder="E.g. Feeling tired...", label_visibility="collapsed")
+        # We use a key 'coach_input' and on_change callback to trigger save
+        st.text_area(
+            "Coach Context", 
+            value=st.session_state.coach_default_val, 
+            placeholder="E.g. Feeling tired, traveling explicitly...", 
+            label_visibility="collapsed",
+            key="coach_input",
+            on_change=save_context
+        )
     
     # CSS for Coach Card
     st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
 
     project_goals = "PROJECT 2026 GOALS: 2026km Running, 26 Half Marathons, 104 Strength Sessions, 200+ Active Days."
-    user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {user_manual_context or 'None'}."
-    metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text})."
+    user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {st.session_state.coach_input or 'None'}."
+    metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text}). Global Filter: {activity_filter}."
     
     prompt = f"""
     Act as an elite endurance coach for Parva. 
@@ -361,11 +390,14 @@ try:
     {user_context_str}
     {metrics_context_str}
     
-    TASK: Provide a concise, motivating response (max 3-4 sentences total) structured as:
-    1. ⚡ Short Term: Specific focus for today/tomorrow based on TSB/Fatigue.
-    2. 🔭 Long Term: How this fits the 2026km/HM goals.
+    TASK: Provide a concise, motivating response (max 3-4 sentences) including CONCRETE TARGETS:
+    1. ⚡ Short Term: Specific focus for today. **MANDATORY**: Suggest a target TRIMP score (e.g. "Target 60 TRIMP") OR a Duration @ Intensity (e.g. "Run 45mins @ 145-155bpm").
+    2. 🔭 Long Term: How this aligns with the 2026km/HM goals.
     
-    Keep it punchy. If TSB is very negative, mandate rest. If TSB is high positive, push for volume.
+    Logic:
+    - If TSB < -20: Mandate Rest or Active Recovery (20 min walk).
+    - If TSB > 5: Suggest Overload (High TRIMP).
+    - If TSB -10 to 5: Maintenance/Aerobic.
     """
 
     # Logic:
