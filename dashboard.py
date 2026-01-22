@@ -382,7 +382,7 @@ st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linea
 
 project_goals = "PROJECT 2026 GOALS: 2026km Running, 26 Half Marathons, 104 Strength Sessions, 200+ Active Days."
 user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {st.session_state.coach_input or 'None'}."
-metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text}). Global Filter: {activity_filter}."
+metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text})."
 
 prompt = f"""
 Act as an elite endurance coach for Parva. 
