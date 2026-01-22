@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 GARMIN_EMAIL = os.getenv("GARMIN_EMAIL")
 GARMIN_PASSWORD = os.getenv("GARMIN_PASSWORD")
@@ -51,7 +52,7 @@ def init_gspread():
             "https://www.googleapis.com/auth/drive",
         ]
         creds = ServiceAccountCredentials.from_json_keyfile_name(
-            "service_account.json", scope
+            os.path.join(BASE_DIR, "service_account.json"), scope
         )
         client = gspread.authorize(creds)
         logging.info("Google Sheets login successful.")
