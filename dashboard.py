@@ -344,7 +344,8 @@ def ask_gemini_coach(prompt_text):
     except Exception as outer_e:
         raise outer_e
 
-    import json
+    try:
+        import json
     import os
     
     CONTEXT_FILE = "coach_context.json"
