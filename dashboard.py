@@ -263,7 +263,19 @@ def calculate_trimp(duration_min, avg_hr):
 try:
     df_phys = df.copy().sort_values("Date")
     df_phys['TRIMP'] = df_phys.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
-    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum().reset_index()
+    
+    # Resample to daily, but we MUST extend to today to capture rest days
+    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum()
+    
+    # Extend index to today if needed
+    last_date = df_phys.index.max().date()
+    today = datetime.date.today()
+    if last_date < today:
+        # Create full range
+        full_idx = pd.date_range(start=df_phys.index.min(), end=today, freq='D')
+        df_phys = df_phys.reindex(full_idx, fill_value=0)
+    
+    df_phys = df_phys.reset_index().rename(columns={'index': 'Date'})
     df_phys['CTL'] = df_phys['TRIMP'].ewm(span=42, adjust=False).mean()
     df_phys['ATL'] = df_phys['TRIMP'].ewm(span=7, adjust=False).mean()
     df_phys['TSB'] = df_phys['CTL'] - df_phys['ATL']
