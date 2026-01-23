@@ -384,9 +384,22 @@ with st.expander("📝 AI Coach Settings & Context", expanded=False):
 # CSS for Coach Card
 st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
 
+# Additional Context for AI: Strength & Weekly Progress
+today = datetime.date.today()
+current_iso_week = today.isocalendar()[1]
+current_year = today.year
+
+# Count strength sessions this week (ISO week starts Monday)
+strength_this_week = len(df[
+    (df['NormalizedType'].str.contains('strength', na=False)) & 
+    (df['Date'].dt.isocalendar().week == current_iso_week) & 
+    (df['Date'].dt.year == current_year)
+])
+days_left_in_week = 7 - today.isocalendar()[2] # 1=Mon, 7=Sun
+
 project_goals = "PROJECT 2026 GOALS: 2026km Running, 26 Half Marathons, 104 Strength Sessions, 200+ Active Days."
 user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {st.session_state.coach_input or 'None'}."
-metrics_context_str = f"Current Status: Date {datetime.date.today()}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text})."
+metrics_context_str = f"Current Status: Date {today}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text}). Strength Sessions This Week: {strength_this_week}/2 ({days_left_in_week} days left)."
 
 prompt = f"""
 Act as an elite endurance coach for Parva. 
@@ -395,12 +408,13 @@ CONTEXT: {project_goals}
 {metrics_context_str}
 
 TASK: Provide a concise, motivating response (max 3-4 sentences) including CONCRETE TARGETS:
-1. ⚡ Short Term: Specific focus for today. **MANDATORY**: Suggest a target TRIMP score (e.g. "Target 60 TRIMP") OR a Duration @ Intensity (e.g. "Run 45mins @ 145-155bpm").
-2. 🔭 Long Term: How this aligns with the 2026km/HM goals.
+1. ⚡ Short Term: Specific focus for today. **MANDATORY**: Suggest a target TRIMP score OR a Duration @ Intensity.
+2. 🔭 Long Term: Align with 2026 goals.
 
 Logic:
-- If TSB < -20: Mandate Rest or Active Recovery (20 min walk).
-- If TSB > 5: Suggest Overload (High TRIMP).
+- **STRENGTH CHECK**: If Strength Sessions This Week < 2 AND days left < 3: URGE a gym session immediately!
+- If TSB < -20: Mandate Rest/Active Recovery.
+- If TSB > 5: Suggest Overload.
 - If TSB -10 to 5: Maintenance/Aerobic.
 """
 
@@ -581,7 +595,7 @@ with col_row2_R:
 
         if df_trend_final.empty: st.info("No activities."); return
 
-        freq = 'D' if (days_lookback and days_lookback <= 31) else 'W-MON'
+        freq = 'D' if (days_lookback and days_lookback <= 31) else 'W-SUN'
         df_trend_final['Period'] = df_trend_final['Date'].dt.to_period(freq).apply(lambda r: r.start_time)
 
         if activity_filter in ["Running", "Walking/Hiking", "All"]:
