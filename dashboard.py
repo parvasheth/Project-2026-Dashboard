@@ -202,37 +202,7 @@ def format_duration_ms(minutes):
     secs = int((minutes - mins) * 60)
     return f"{mins}:{secs:02d}"
 
-# --- Data Loading ---
-def load_data():
-    try:
-        # Create connection object and retrieve data
-        # 'gsheets' is the name of the connection in .streamlit/secrets.toml
-        # ttl=600 for 10 min cache
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # Read the DataFrame
-        # ttl=0 to ensure we always get the latest data from the sheet
-        df = conn.read(ttl=0)
-        
-        if not df.empty:
-            df['Date'] = pd.to_datetime(df['Date'])
-            # Explicitly sort by Date to ensure order regardless of sheet append location
-            df = df.sort_values("Date", ascending=True)
-            
-            df['Distance (km)'] = pd.to_numeric(df['Distance (km)'], errors='coerce').fillna(0)
-            df['Elevation Gain (m)'] = pd.to_numeric(df['Elevation Gain (m)'], errors='coerce').fillna(0)
-            df['Duration (min)'] = pd.to_numeric(df['Duration (min)'], errors='coerce').fillna(0)
-            df['Avg HR'] = pd.to_numeric(df['Avg HR'], errors='coerce').fillna(0)
-            
-            # Normalize 'treadmill_running' to 'running' for logic checks
-            df['NormalizedType'] = df['Type'].apply(lambda x: 'running' if 'running' in str(x).lower() else str(x).lower())
-            
-        return df
-    except Exception as e:
-        st.error("Setup Required: Please configure Streamlit Secrets with your Google Sheet credentials.")
-        # Only show specific error in development/debugging if needed, but keeping it clean for deploy
-        # st.error(f"Details: {e}") 
-        return pd.DataFrame()
+from utils import load_data, calculate_physiology
 
 df = load_data()
 
@@ -254,35 +224,9 @@ if df.empty:
     st.stop()
 
 # --- Global Physiology Calculations ---
-RHR = 45
-MAX_HR = 197
-HR_RESERVE = MAX_HR - RHR
-
-def calculate_trimp(duration_min, avg_hr):
-    if avg_hr == 0: return 0
-    hrr_factor = (avg_hr - RHR) / HR_RESERVE
-    trimp = duration_min * hrr_factor * 0.64 * np.exp(1.92 * hrr_factor)
-    return trimp
-
+# Calculated in utils to ensure consistency across pages
 try:
-    df_phys = df.copy().sort_values("Date")
-    df_phys['TRIMP'] = df_phys.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
-    
-    # Resample to daily, but we MUST extend to today to capture rest days
-    df_phys = df_phys.set_index('Date').resample('D')['TRIMP'].sum()
-    
-    # Extend index to today if needed
-    last_date = df_phys.index.max().date()
-    today = datetime.date.today()
-    if last_date < today:
-        # Create full range
-        full_idx = pd.date_range(start=df_phys.index.min(), end=today, freq='D')
-        df_phys = df_phys.reindex(full_idx, fill_value=0)
-    
-    df_phys = df_phys.reset_index().rename(columns={'index': 'Date'})
-    df_phys['CTL'] = df_phys['TRIMP'].ewm(span=42, adjust=False).mean()
-    df_phys['ATL'] = df_phys['TRIMP'].ewm(span=7, adjust=False).mean()
-    df_phys['TSB'] = df_phys['CTL'] - df_phys['ATL']
+    df_phys = calculate_physiology(df)
     
     current_metrics = df_phys.iloc[-1]
     curr_ctl = current_metrics['CTL']
