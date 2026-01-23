@@ -172,6 +172,9 @@ if not df_intra.empty:
         
         df_sleep['Stage'] = df_sleep['Value'].map(stage_map)
         
+        # Ensure EndTimestamp is also UTC datetime
+        df_sleep['EndTimestamp'] = pd.to_datetime(df_sleep['EndTimestamp'], format='mixed', utc=True)
+
         fig_gantt = px.timeline(
             df_sleep, x_start="Timestamp", x_end="EndTimestamp", y="Stage",
             color="Stage", color_discrete_map=color_map,
