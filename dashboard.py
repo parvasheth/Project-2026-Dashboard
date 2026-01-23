@@ -254,6 +254,34 @@ except Exception as e:
 
 st.markdown("---")
 
+# --- Custom Navigation ---
+st.markdown("""
+<style>
+div[data-testid="stColumn"] > div > div > div > div {
+    gap: 0.5rem;
+}
+.nav-btn {
+    width: 100%;
+    border: 1px solid #333;
+    background: #181b1f;
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+}
+</style>
+""", unsafe_allow_html=True)
+
+nav1, nav2, _ = st.columns([1, 1, 4])
+with nav1:
+    st.button("🏋️ Training Hub", disabled=True)
+with nav2:
+    if st.button("🧘 Personal History"):
+        st.switch_page("pages/Personal_History.py")
+
 # ==========================================
 # ROW 1: TRAINING STATUS
 # ==========================================
