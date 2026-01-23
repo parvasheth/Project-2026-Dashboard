@@ -3,6 +3,13 @@ import pandas as pd
 import numpy as np
 from streamlit_gsheets import GSheetsConnection
 import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+SHEET_ID = os.getenv("GOOGLE_SHEET_KEY")
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}" if SHEET_ID else None
 
 # --- Physiology Constants ---
 RHR = 45
@@ -21,7 +28,12 @@ def load_data():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         # ttl=0 for instant updates
-        df = conn.read(ttl=0)
+        
+        if not SHEET_URL:
+            st.error("Missing GOOGLE_SHEET_KEY in .env file.")
+            return pd.DataFrame()
+
+        df = conn.read(spreadsheet=SHEET_URL, ttl=0)
         
         if not df.empty:
             df['Date'] = pd.to_datetime(df['Date'])
@@ -44,8 +56,13 @@ def load_wellness_data():
     """Load Wellness data from Google Sheets (Worksheet: Wellness)."""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        if not SHEET_URL:
+             # Already handled/shown in load_data usually, but good to be safe
+             return pd.DataFrame()
+
         # Read specifically the Wellness worksheet
-        df = conn.read(worksheet="Wellness", ttl=0)
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Wellness", ttl=0)
         
         if not df.empty:
             df['Date'] = pd.to_datetime(df['Date'])
@@ -58,7 +75,7 @@ def load_wellness_data():
         return df
     except Exception as e:
         # It's possible the worksheet doesn't exist yet if sync hasn't run
-        # st.warning(f"Wellness data not found (Worksheet 'Wellness' missing?). Run sync script.") 
+        st.warning(f"Wellness data error: {e}") 
         return pd.DataFrame()
 
 def calculate_physiology(df):
