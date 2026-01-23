@@ -126,9 +126,11 @@ def load_intraday_data():
             # Parse Dates/Timestamps
             # 'Timestamp' is ISO format
             if 'Timestamp' in df.columns:
-                df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+                df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='mixed', utc=True)
             if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'])
+                df['Date'] = pd.to_datetime(df['Date'], format='mixed', utc=True)
+            if 'EndTimestamp' in df.columns:
+                df['EndTimestamp'] = pd.to_datetime(df['EndTimestamp'], format='mixed', utc=True)
                 
             # Ensure Numeric Value
             if 'Value' in df.columns:
@@ -136,7 +138,7 @@ def load_intraday_data():
                  
         return df
     except Exception as e:
-        # st.warning(f"Intraday data error: {e}")
+        print(f"DEBUG ERROR: {e}")
         return pd.DataFrame()
 
 def calculate_physiology(df):
