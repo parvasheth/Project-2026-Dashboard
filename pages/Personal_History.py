@@ -123,3 +123,64 @@ with c_sleep_R:
     )
     fig_steps.update_layout(template="plotly_dark", height=300, showlegend=False)
     st.plotly_chart(fig_steps, use_container_width=True)
+
+# --- Row 3: High Resolution Analysis (Last 3 Days) ---
+st.markdown("---")
+st.subheader("🔍 High Resolution Analysis (Last 3 Days)")
+
+from utils import load_intraday_data
+df_intra = load_intraday_data()
+
+if not df_intra.empty:
+    # Filter only last 3 days
+    recent_date = df_intra['Date'].max() - datetime.timedelta(days=2)
+    df_intra = df_intra[df_intra['Date'] >= recent_date]
+    
+    # 1. Heart Rate Intraday
+    st.markdown("##### Heart Rate (Minute-by-Minute)")
+    df_hr = df_intra[df_intra['Type'] == 'HeartRate']
+    if not df_hr.empty:
+        fig_hr = px.line(df_hr, x='Timestamp', y='Value', title="Heart Rate", color_discrete_sequence=['#FF4B4B'])
+        fig_hr.update_traces(line=dict(width=1))
+        fig_hr.update_layout(template="plotly_dark", height=300, margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_hr, use_container_width=True)
+    
+    # 2. Stress & Body Battery Intraday
+    st.markdown("##### Stress & Body Battery")
+    c_stress, c_bb = st.columns(2) # Or together? Grafana often overlays them. Left side by side for detail.
+    
+    df_stress = df_intra[df_intra['Type'] == 'Stress']
+    df_bb = df_intra[df_intra['Type'] == 'BodyBattery']
+    
+    # Overlay Chart
+    fig_combo = go.Figure()
+    if not df_stress.empty:
+        fig_combo.add_trace(go.Scatter(x=df_stress['Timestamp'], y=df_stress['Value'], name="Stress", line=dict(color='#FFA726', width=1), fill='tozeroy', fillcolor='rgba(255, 167, 38, 0.2)'))
+    if not df_bb.empty:
+        fig_combo.add_trace(go.Scatter(x=df_bb['Timestamp'], y=df_bb['Value'], name="Body Battery", line=dict(color='#42A5F5', width=2)))
+        
+    fig_combo.update_layout(template="plotly_dark", height=350, title="Stress vs Body Battery Overlay", hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    st.plotly_chart(fig_combo, use_container_width=True)
+
+    # 3. Sleep Stages (Gantt)
+    st.markdown("##### Sleep Architecture")
+    df_sleep = df_intra[df_intra['Type'] == 'SleepStage'].copy()
+    if not df_sleep.empty and 'EndTimestamp' in df_sleep.columns:
+        # Value map: 1=Deep, 2=Light, 3=REM, 4=Awake
+        stage_map = {1: "Deep", 2: "Light", 3: "REM", 4: "Awake", 0: "Unknown"}
+        color_map = {"Deep": "#1f77b4", "Light": "#2ca02c", "REM": "#9467bd", "Awake": "#d62728", "Unknown": "gray"}
+        
+        df_sleep['Stage'] = df_sleep['Value'].map(stage_map)
+        
+        fig_gantt = px.timeline(
+            df_sleep, x_start="Timestamp", x_end="EndTimestamp", y="Stage",
+            color="Stage", color_discrete_map=color_map,
+            category_orders={"Stage": ["Awake", "REM", "Light", "Deep"]},
+            title="Sleep Stages (Hypnogram)"
+        )
+        fig_gantt.update_yaxes(autorange="reversed") # Deep at bottom
+        fig_gantt.update_layout(template="plotly_dark", height=250)
+        st.plotly_chart(fig_gantt, use_container_width=True)
+
+else:
+    st.caption("No high-resolution intraday data found. Run `sync_garmin.py` to fetch recent details.")
