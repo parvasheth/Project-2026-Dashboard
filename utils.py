@@ -106,6 +106,39 @@ def load_wellness_data():
         st.error(f"Wellness data error: {e}") 
         return pd.DataFrame()
 
+def load_intraday_data():
+    """Load Intraday Wellness data from Google Sheets (Worksheet: Wellness_Intraday)."""
+    client = get_gspread_client()
+    if not client or not SHEET_KEY: return pd.DataFrame()
+
+    try:
+        sh = client.open_by_key(SHEET_KEY)
+        try:
+            wks = sh.worksheet("Wellness_Intraday")
+        except gspread.exceptions.WorksheetNotFound:
+            # Silent fail if not yet synced, just return empty
+            return pd.DataFrame()
+            
+        data = wks.get_all_records()
+        df = pd.DataFrame(data)
+        
+        if not df.empty:
+            # Parse Dates/Timestamps
+            # 'Timestamp' is ISO format
+            if 'Timestamp' in df.columns:
+                df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'])
+                
+            # Ensure Numeric Value
+            if 'Value' in df.columns:
+                 df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
+                 
+        return df
+    except Exception as e:
+        # st.warning(f"Intraday data error: {e}")
+        return pd.DataFrame()
+
 def calculate_physiology(df):
     """Calculate CTL, ATL, TSB from activity dataframe."""
     if df.empty: return None
