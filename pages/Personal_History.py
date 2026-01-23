@@ -28,9 +28,37 @@ df_daily = load_wellness_data()
 df_intra = load_intraday_data()
 df_activ = load_data() # For Activity Timeline
 
-if df_daily.empty:
-    st.error("No daily wellness data found. Please run sync.")
-    st.stop()
+# --- Custom Navigation ---
+st.markdown("""
+<style>
+div[data-testid="stColumn"] > div > div > div > div {
+    gap: 0.5rem;
+}
+.nav-btn {
+    width: 100%;
+    border: 1px solid #333;
+    background: #181b1f;
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+}
+.nav-btn:hover { background: #22252b; border-color: #73bf69; }
+.nav-btn.active { background: #181b1f; border-color: #73bf69; color: #73bf69; }
+</style>
+""", unsafe_allow_html=True)
+
+nav1, nav2, _ = st.columns([1, 1, 4])
+with nav1:
+    if st.button("🏋️ Training Hub"):
+        st.switch_page("dashboard.py")
+with nav2:
+    st.button("🧘 Personal History", disabled=True) # Current Page
+
+# --- Data Loading ---
 
 # --- Row 1: KPI Tiles (Big Number + Delta) ---
 # Calculate Deltas (Today vs Yesterday)
@@ -144,9 +172,19 @@ with crow1: # Steps Heatmap
             df_steps_i['DateStr'] = df_steps_i['Timestamp'].dt.date
             pivot = df_steps_i.pivot_table(index='DateStr', columns='Hour', values='Value', aggfunc='sum').fillna(0)
             
+            # Custom Dark-to-Neon Green scale
+            custom_scale = [
+                #[0, 'rgba(0,0,0,0)'], # Transparent for 0?
+                [0, '#0e1117'],       # Dark background color
+                [0.1, '#0e2a17'],
+                [0.5, '#00b34a'],
+                [1, '#00E396']        # Neon Green
+            ]
+            
             fig_heat = go.Figure(go.Heatmap(
                 z=pivot.values, x=pivot.columns, y=pivot.index,
-                colorscale='Greens', showscale=False
+                colorscale=custom_scale, showscale=False,
+                xgap=1, ygap=1
             ))
             fig_heat.update_layout(
                 title="Steps per Hour",
