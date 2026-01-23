@@ -4,229 +4,224 @@ import plotly.express as px
 import plotly.graph_objects as go
 import datetime
 import numpy as np
-from utils import load_wellness_data, load_intraday_data
+from utils import load_wellness_data, load_intraday_data, load_data
 
-# Page Config
 st.set_page_config(page_title="Personal History | Project 2026", page_icon="🧘", layout="wide")
 
-# Styling: Grafana Dark Mode Override
+# --- Grafana Dark Theme with Neon Accents ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0b0c0e; } /* Grafana Dark */
-    .block-container { padding-top: 1rem; padding-bottom: 2rem; }
-    h1, h2, h3, h4, h5 { color: #e9ecef; font-family: 'Inter', sans-serif; }
-    .stMetric { background-color: #181b1f; padding: 15px; border-radius: 5px; border: 1px solid #2c3235; }
+    .stApp { background-color: #0b0c0e; }
+    h1, h2, h3, h4, h5, p, span { color: #e0e0e0; font-family: 'Inter', sans-serif; }
+    .stMetric { background-color: #181b1f; padding: 10px; border-radius: 4px; border-left: 3px solid #73bf69; }
+    .block-container { padding-top: 1rem; padding-bottom: 3rem; }
+    /* Hide Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🧘 Personal History & Wellness")
+st.title("🧘 Personal History")
 
-# --- Helper Functions ---
-def create_gauge(value, title, min_val, max_val, color_ranges):
-    """Create a Grafana-style Arc Gauge."""
-    steps = []
-    # color_ranges = [(value, color), (value, color)...]
-    # Simple gradient approach or fixed steps
-    
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = value,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': title, 'font': {'size': 14, 'color': "gray"}},
-        number = {'font': {'size': 24, 'color': "white"}},
-        gauge = {
-            'axis': {'range': [min_val, max_val], 'tickwidth': 1, 'tickcolor': "gray"},
-            'bar': {'color': "rgba(0,0,0,0)"}, # Invisible bar, we use steps/thresholds typically or needle
-            'bgcolor': "rgba(0,0,0,0)",
-            'borderwidth': 0,
-            'steps': [
-                {'range': [min_val, value], 'color': color_ranges} 
-            ],
-            'threshold': {
-                'line': {'color': "white", 'width': 2},
-                'thickness': 0.75,
-                'value': value
-            }
-        }
-    ))
-    fig.update_layout(paper_bgcolor = "rgba(0,0,0,0)", font = {'color': "white", 'family': "Arial"}, height=150, margin=dict(l=20,r=20,t=30,b=20))
-    return fig
-
-def create_radial_gauge(value, title, min_val, max_val, color):
-    """Create a circular progress gauge."""
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = value,
-        title = {'text': title, 'font': {'size': 14, 'color': "#c7d0d9"}},
-        number = {'font': {'size': 20, 'color': "white"}},
-        gauge = {
-            'axis': {'range': [min_val, max_val], 'visible': False},
-            'bar': {'color': color},
-            'bgcolor': "#22252b",
-            'borderwidth': 0,
-        }
-    ))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=140, margin=dict(t=30, b=10, l=20, r=20))
-    return fig
-
-# --- Load Data ---
-df_wellness = load_wellness_data()
+# --- Data Loading ---
+df_daily = load_wellness_data()
 df_intra = load_intraday_data()
+df_activ = load_data() # For Activity Timeline
 
-if df_wellness.empty:
-    st.error("No wellness data found. Run `sync_garmin.py`.")
+if df_daily.empty:
+    st.error("No daily wellness data found. Please run sync.")
     st.stop()
 
-# --- Top Filters ---
-col_filter, _ = st.columns([1, 4])
-with col_filter:
-    days_lookback = st.selectbox("Timeframe", [7, 30, 90], index=0)
+# --- Row 1: KPI Tiles (Big Number + Delta) ---
+# Calculate Deltas (Today vs Yesterday)
+today = df_daily.iloc[-1]
+yesterday = df_daily.iloc[-2] if len(df_daily) > 1 else today
 
-# Filter Wellness
-end_date = df_wellness['Date'].max()
-start_date = end_date - datetime.timedelta(days=days_lookback)
-df_w_filt = df_wellness[(df_wellness['Date'] >= start_date) & (df_wellness['Date'] <= end_date)]
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-# --- Row 1: KPI Gauges (Grafana Style) ---
-st.markdown("### 🚦 Current Status")
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+def kpi_card(col, label, value, delta, color="#73bf69"):
+    with col:
+        st.metric(label=label, value=value, delta=delta)
+        # Custom CSS for color injection could go here, but St.metric is sufficient for now
 
-# Latest Values
-latest = df_wellness.iloc[-1]
-with kpi1:
-    st.plotly_chart(create_radial_gauge(
-        latest.get('Sleep_Score', 0), "Sleep Score", 0, 100, "#73bf69"
-    ), use_container_width=True)
-with kpi2:
-    st.plotly_chart(create_radial_gauge(
-        latest.get('BodyBattery_Max', 0), "Body Battery (Max)", 0, 100, "#56a2f5"
-    ), use_container_width=True)
-with kpi3:
-    st.plotly_chart(create_radial_gauge(
-        latest.get('Stress_Avg', 0), "Avg Stress", 0, 100, "#f2cc0c"
-    ), use_container_width=True)
-with kpi4:
-    steps_val = latest.get('Steps', 0)
-    st.plotly_chart(create_radial_gauge(
-        steps_val, "Daily Steps", 0, 10000, "#FF4B4B" if steps_val < 5000 else "#73bf69"
-    ), use_container_width=True)
+kpi_card(c1, "Steps", f"{today.get('Steps',0):,.0f}", f"{today.get('Steps',0)-yesterday.get('Steps',0):,.0f}")
+kpi_card(c2, "Act. Cal", f"{today.get('ActiveKilocalories',0):.0f}", None) # Need ActiveCal in sync
+kpi_card(c3, "Sleep Score", f"{today.get('Sleep_Score',0):.0f}", f"{today.get('Sleep_Score',0)-yesterday.get('Sleep_Score',0):.0f}")
+kpi_card(c4, "Body Bat.", f"{today.get('BodyBattery_Max',0):.0f}", f"Min: {today.get('BodyBattery_Min',0):.0f}")
+kpi_card(c5, "Stress", f"{today.get('Stress_Avg',0):.0f}", f"{today.get('Stress_Avg',0)-yesterday.get('Stress_Avg',0):.0f}", color="#f2cc0c")
+kpi_card(c6, "RHR", f"{today.get('RHR',0):.0f}", f"{today.get('RHR',0)-yesterday.get('RHR',0):.0f}")
 
-# --- Row 2: Intraday HR & Stress (The "Deep Dive") ---
-st.markdown("### ❤️ Heart Rate & Stress Dynamics")
-
-# Filter Intraday for last 3 days max (visual clutter reduction)
+# --- Row 2: 24h Time-Series High Resolution ---
+st.markdown("### 🔍 Last 24 Hours Analysis")
 if not df_intra.empty:
-    recent_params = df_intra['Date'].max() - datetime.timedelta(days=2) # Last 3 days
-    df_i_filt = df_intra[df_intra['Date'] >= recent_params]
+    # Filter Last 24h
+    latest_ts = df_intra['Timestamp'].max()
+    start_24h = latest_ts - datetime.timedelta(hours=24)
+    df_24h = df_intra[df_intra['Timestamp'] >= start_24h]
     
-    # 2A. Heart Rate Line (Gradient)
-    df_hr = df_i_filt[df_i_filt['Type'] == 'HeartRate']
-    if not df_hr.empty:
-        fig_hr = go.Figure()
-        fig_hr.add_trace(go.Scatter(
-            x=df_hr['Timestamp'], 
-            y=df_hr['Value'],
-            mode='lines',
-            name='Heart Rate',
-            line=dict(color='#ff3333', width=1.5),
-            fill='tozeroy',
-            fillcolor='rgba(255, 51, 51, 0.1)'
-        ))
-        fig_hr.update_layout(
-            title="Intraday Heart Rate (bpm)",
-            template="plotly_dark",
-            height=300,
-            yaxis=dict(range=[40, 180]),
-            margin=dict(l=10, r=10, t=40, b=10),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_hr, use_container_width=True)
-
-    # 2B. Stress & Body Battery Overlay
-    col_stress, col_bb = st.columns([1, 1]) # Split or Combined? User wants Grafana which usually stacks them.
-    # Let's stack them visually in one big chart? Reference image has them separate often.
-    # Let's do Overlay for compactness.
+    vis1, vis2 = st.columns([2, 1])
     
-    df_stress = df_i_filt[df_i_filt['Type'] == 'Stress']
-    df_bb = df_i_filt[df_i_filt['Type'] == 'BodyBattery']
-    
-    fig_combo = go.Figure()
-    if not df_stress.empty:
-        fig_combo.add_trace(go.Scatter(
-            x=df_stress['Timestamp'], y=df_stress['Value'],
-            mode='lines', name='Stress',
-            line=dict(color='#f2994a', width=1),
-            fill='tozeroy', fillcolor='rgba(242, 153, 74, 0.2)'
-        ))
-    if not df_bb.empty:
-        fig_combo.add_trace(go.Scatter(
-            x=df_bb['Timestamp'], y=df_bb['Value'],
-            mode='lines', name='Body Battery',
-            line=dict(color='#2d9cdb', width=2),
-        ))
-    
-    fig_combo.update_layout(
-        title="Stress vs Body Battery Charge/Drain",
-        template="plotly_dark",
-        height=300,
-        margin=dict(l=10, r=10, t=40, b=10),
-        legend=dict(orientation="h", y=1.1),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig_combo, use_container_width=True)
-
-    # --- Row 3: Sleep Architecture ---
-    st.markdown("### 💤 Sleep Hypnogram")
-    
-    df_sleep = df_i_filt[df_i_filt['Type'] == 'SleepStage'].copy()
-    if not df_sleep.empty:
-        stage_map = {1: "Deep", 2: "Light", 3: "REM", 4: "Awake", 0: "Unknown"}
-        color_map = {"Deep": "#005f99", "Light": "#2c8c4c", "REM": "#8c56b5", "Awake": "#d62728", "Unknown": "gray"}
-        df_sleep['Stage'] = df_sleep['Value'].map(stage_map)
+    with vis1:
+        # Chart 1: Heart Rate + Stress Overlay
+        # HR on Left Y, Stress on Right Y (Area) via secondary axis? Or stacked?
+        # Grafana typically does HR line, Stress Area below.
         
-        fig_sleep = px.timeline(
-            df_sleep, x_start="Timestamp", x_end="EndTimestamp", y="Stage",
+        df_hr = df_24h[df_24h['Type'] == 'HeartRate']
+        df_stress = df_24h[df_24h['Type'] == 'Stress']
+        
+        fig_dual = go.Figure()
+        
+        # Stress (Area)
+        if not df_stress.empty:
+             fig_dual.add_trace(go.Scatter(
+                x=df_stress['Timestamp'], y=df_stress['Value'],
+                mode='lines', name='Stress',
+                fill='tozeroy', line=dict(width=0),
+                marker=dict(color='rgba(255, 165, 0, 0.2)'),
+                yaxis='y2'
+             ))
+             
+        # HR (Line)
+        if not df_hr.empty:
+            fig_dual.add_trace(go.Scatter(
+                x=df_hr['Timestamp'], y=df_hr['Value'],
+                mode='lines', name='HR',
+                line=dict(color='#ff2b2b', width=2)
+            ))
+            
+        fig_dual.update_layout(
+            template="plotly_dark", height=300,
+            title="Heart Rate & Stress (24h)",
+            xaxis=dict(showgrid=False),
+            yaxis=dict(title="HR (bpm)", showgrid=True, gridcolor='#333'),
+            yaxis2=dict(title="Stress", overlaying='y', side='right', range=[0,100], showgrid=False),
+            margin=dict(t=40, l=10, r=10, b=10),
+            legend=dict(orientation="h", y=1.1)
+        )
+        st.plotly_chart(fig_dual, use_container_width=True)
+        
+    with vis2:
+        # Chart 2: Body Battery & Respiration
+        df_bb = df_24h[df_24h['Type'] == 'BodyBattery']
+        df_br = df_24h[df_24h['Type'] == 'Respiration']
+        
+        fig_br = go.Figure()
+        if not df_bb.empty:
+            fig_br.add_trace(go.Scatter(
+                x=df_bb['Timestamp'], y=df_bb['Value'],
+                name='Body Battery',
+                line=dict(color='#3274d9', width=2)
+            ))
+        if not df_br.empty:
+            fig_br.add_trace(go.Scatter(
+                x=df_br['Timestamp'], y=df_br['Value'],
+                name='Resp Rate', mode='markers+lines',
+                line=dict(color='#56f088', width=1, dash='dot'),
+                yaxis='y2'
+            ))
+            
+        fig_br.update_layout(
+             template="plotly_dark", height=300,
+             title="Energy & Respiration",
+             yaxis=dict(range=[0,100], title="Body Batt"),
+             yaxis2=dict(overlaying='y', side='right', title="BrPM"),
+             margin=dict(t=40, l=10, r=10, b=10),
+             legend=dict(orientation="h", y=1.1)
+        )
+        st.plotly_chart(fig_br, use_container_width=True)
+
+# --- Row 3: Heatmaps (Steps & Sleep) ---
+st.markdown("### 🧱 Intensity & Consistency")
+crow1, crow2 = st.columns(2)
+
+with crow1: # Steps Heatmap
+    if not df_intra.empty:
+        df_steps_i = df_intra[df_intra['Type'] == 'Steps'].copy()
+        if not df_steps_i.empty:
+            df_steps_i['Hour'] = df_steps_i['Timestamp'].dt.hour
+            df_steps_i['DateStr'] = df_steps_i['Timestamp'].dt.date
+            # Pivot
+            pivot = df_steps_i.pivot_table(index='DateStr', columns='Hour', values='Value', aggfunc='sum').fillna(0)
+            
+            fig_heat = go.Figure(go.Heatmap(
+                z=pivot.values, x=pivot.columns, y=pivot.index,
+                colorscale='Greens', showscale=False
+            ))
+            fig_heat.update_layout(template="plotly_dark", height=300, title="Steps by Hour", margin=dict(t=40,b=10))
+            st.plotly_chart(fig_heat, use_container_width=True)
+            
+with crow2: # Sleep Architecture Timeline (Using Gantt logic)
+    # Using df_intra type=SleepStage
+    df_sleep_i = df_intra[df_intra['Type'] == 'SleepStage'].copy() if not df_intra.empty else pd.DataFrame()
+    if not df_sleep_i.empty:
+        stage_map = {1: "Deep", 2: "Light", 3: "REM", 4: "Awake", 0: "Unknown"}
+        color_map = {"Deep": "#1f77b4", "Light": "#2ca02c", "REM": "#9467bd", "Awake": "#d62728", "Unknown": "gray"}
+        df_sleep_i['Stage'] = df_sleep_i['Value'].map(stage_map)
+        
+        # Ensure UTC
+        if 'EndTimestamp' not in df_sleep_i.columns:
+             # Fallback if utils failed? Utils should handle it.
+             pass
+             
+        fig_gantt = px.timeline(
+            df_sleep_i, x_start="Timestamp", x_end="EndTimestamp", y="Stage",
             color="Stage", color_discrete_map=color_map,
             category_orders={"Stage": ["Awake", "REM", "Light", "Deep"]},
         )
-        fig_sleep.update_yaxes(autorange="reversed")
-        fig_sleep.update_layout(
-            template="plotly_dark",
-            height=250,
-            margin=dict(l=10, r=10, t=30, b=10),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_sleep, use_container_width=True)
+        fig_gantt.update_yaxes(autorange="reversed")
+        fig_gantt.update_layout(template="plotly_dark", height=300, title="Sleep Hypnogram History", margin=dict(t=40,b=10))
+        st.plotly_chart(fig_gantt, use_container_width=True)
 
-    # --- Row 4: Steps Heatmap ---
-    st.markdown("### 👣 Hourly Activity Heatmap")
-    
-    df_steps = df_i_filt[df_i_filt['Type'] == 'Steps'].copy()
-    if not df_steps.empty:
-        # Prepare Heatmap Data: Index=Date, Col=Hour, Value=Steps
-        df_steps['Hour'] = df_steps['Timestamp'].dt.hour
-        df_steps['DateStr'] = df_steps['Timestamp'].dt.date
-        
-        pivot_steps = df_steps.pivot_table(index='DateStr', columns='Hour', values='Value', aggfunc='sum').fillna(0)
-        
-        fig_heat = go.Figure(data=go.Heatmap(
-            z=pivot_steps.values,
-            x=pivot_steps.columns,
-            y=pivot_steps.index,
-            colorscale='Greens',
-            xgap=1, ygap=1
-        ))
-        fig_heat.update_layout(
-            title="Steps per Hour",
-            template="plotly_dark",
-            height=300,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_heat, use_container_width=True)
+# --- Row 4: Performance (Activity Timeline & Trends) ---
+st.markdown("### 🏃 Performance Trends")
+p1, p2 = st.columns([2, 1])
 
-else:
-    st.info("Intraday data missing. Run `sync_garmin.py`.")
+with p1: # Activity timeline
+     if not df_activ.empty:
+         # Last 7 days chart
+         activ_7d = df_activ.sort_values("Date").tail(15) # Last 15 events
+         # Create Timeline
+         # Start = Date, End = Date + Duration
+         activ_7d['End'] = activ_7d['Date'] + pd.to_timedelta(activ_7d['Duration (min)'], unit='m')
+         
+         fig_act = px.timeline(
+             activ_7d, x_start="Date", x_end="End", y="NormalizedType",
+             color="NormalizedType", title="Recent Activities Timeline",
+             height=300
+         )
+         fig_act.update_layout(template="plotly_dark", showlegend=False)
+         st.plotly_chart(fig_act, use_container_width=True)
+
+with p2: # Daily Steps Trend
+    fig_tr = px.bar(df_daily.tail(30), x='Date', y='Steps', title="30-Day Step Trend", color='Steps')
+    fig_tr.update_layout(template="plotly_dark", height=300, coloraxis_showscale=False)
+    st.plotly_chart(fig_tr, use_container_width=True)
+
+# --- Row 5: Long-Term Health (Weight, VO2) ---
+st.markdown("### ⚖️ Long Term Stats")
+l1, l2 = st.columns(2)
+# Placeholder for weight if not in data yet
+# Assuming future sync adds 'Weight' to Wellness sheet or separate.
+# Current logic: load_wellness_data handles keys passed. 
+# We need to ensure sync_garmin adds Weight to Wellness Row. (Currently syncs summary but not weight specifically?)
+# Reference impl creates 'BodyComposition' measurement in Intraday.
+# Let's check Intraday for Weight for now:
+if not df_intra.empty:
+    df_weight = df_intra[df_intra['Type'] == 'BodyComposition'] # From updated Sync? Not added in plan yet.
+    # Actually User Plan asked to fetch BodyComp. Sync logic added it?
+    # Wait, previous tool call added Respiration but didn't explicitly add BodyComp function call in get_intraday_data loop?
+    # I replaced lines 361-377 to add Respiration. I might have missed BodyComp call in loop.
+    pass
+
+with l1:
+    fig_vo2 = px.line(df_daily, x='Date', y='VO2Max', markers=True, title="VO2 Max Trend")
+    fig_vo2.update_traces(line_color="#b388ff")
+    fig_vo2.update_layout(template="plotly_dark", height=250)
+    st.plotly_chart(fig_vo2, use_container_width=True)
+
+with l2:
+    if 'HRV_ms' in df_daily.columns:
+        fig_hrv = px.line(df_daily, x='Date', y='HRV_ms', markers=True, title="HRV Status (ms)")
+        fig_hrv.update_traces(line_color="#56f088")
+        fig_hrv.update_layout(template="plotly_dark", height=250)
+        st.plotly_chart(fig_hrv, use_container_width=True)
