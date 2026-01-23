@@ -109,7 +109,7 @@ with c_sleep_L:
         range_color=[50, 90],
         title="Sleep Duration (hrs) colored by Score"
     )
-    fig_sleep.add_hline(y=8, line_dash="drive", line_color="green", annotation_text="Goal (8h)")
+    fig_sleep.add_hline(y=8, line_dash="dashdot", line_color="green", annotation_text="Goal (8h)")
     fig_sleep.update_layout(template="plotly_dark", height=300)
     st.plotly_chart(fig_sleep, use_container_width=True)
 
