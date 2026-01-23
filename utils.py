@@ -1,20 +1,42 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from streamlit_gsheets import GSheetsConnection
 import datetime
 import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-SHEET_ID = os.getenv("GOOGLE_SHEET_KEY")
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}" if SHEET_ID else None
+SHEET_KEY = os.getenv("GOOGLE_SHEET_KEY")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Physiology Constants ---
 RHR = 45
 MAX_HR = 197
 HR_RESERVE = MAX_HR - RHR
+
+@st.cache_resource
+def get_gspread_client():
+    """Authenticate and return gspread client."""
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        # Locate service account file
+        creds_path = os.path.join(BASE_DIR, "service_account.json")
+        if not os.path.exists(creds_path):
+            st.error(f"Credentials not found at {creds_path}")
+            return None
+            
+        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+        client = gspread.authorize(creds)
+        return client
+    except Exception as e:
+        st.error(f"Authentication Error: {e}")
+        return None
 
 def calculate_trimp(duration_min, avg_hr):
     """Calculate TRIMP based on HR Reserve zone."""
@@ -24,16 +46,19 @@ def calculate_trimp(duration_min, avg_hr):
     return trimp
 
 def load_data():
-    """Load Activity data from Google Sheets."""
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        # ttl=0 for instant updates
-        
-        if not SHEET_URL:
-            st.error("Missing GOOGLE_SHEET_KEY in .env file.")
-            return pd.DataFrame()
+    """Load Activity data from Google Sheets (Sheet1)."""
+    client = get_gspread_client()
+    if not client or not SHEET_KEY: return pd.DataFrame()
 
-        df = conn.read(spreadsheet=SHEET_URL, ttl=0)
+    try:
+        # Open by Key
+        sh = client.open_by_key(SHEET_KEY)
+        # Assuming Activities are in the first sheet or named 'Sheet1'
+        # sync_garmin.py uses .sheet1 which is the first sheet
+        wks = sh.sheet1
+        
+        data = wks.get_all_records() # Returns list of dicts
+        df = pd.DataFrame(data)
         
         if not df.empty:
             df['Date'] = pd.to_datetime(df['Date'])
@@ -54,15 +79,19 @@ def load_data():
 
 def load_wellness_data():
     """Load Wellness data from Google Sheets (Worksheet: Wellness)."""
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        if not SHEET_URL:
-             # Already handled/shown in load_data usually, but good to be safe
-             return pd.DataFrame()
+    client = get_gspread_client()
+    if not client or not SHEET_KEY: return pd.DataFrame()
 
-        # Read specifically the Wellness worksheet
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Wellness", ttl=0)
+    try:
+        sh = client.open_by_key(SHEET_KEY)
+        try:
+            wks = sh.worksheet("Wellness")
+        except gspread.exceptions.WorksheetNotFound:
+            st.warning("Wellness worksheet not found. Please sync data first.")
+            return pd.DataFrame()
+            
+        data = wks.get_all_records()
+        df = pd.DataFrame(data)
         
         if not df.empty:
             df['Date'] = pd.to_datetime(df['Date'])
@@ -74,8 +103,7 @@ def load_wellness_data():
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        # It's possible the worksheet doesn't exist yet if sync hasn't run
-        st.warning(f"Wellness data error: {e}") 
+        st.error(f"Wellness data error: {e}") 
         return pd.DataFrame()
 
 def calculate_physiology(df):
