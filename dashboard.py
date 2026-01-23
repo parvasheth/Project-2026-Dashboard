@@ -211,10 +211,14 @@ def load_data():
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         # Read the DataFrame
-        df = conn.read()
+        # ttl=0 to ensure we always get the latest data from the sheet
+        df = conn.read(ttl=0)
         
         if not df.empty:
             df['Date'] = pd.to_datetime(df['Date'])
+            # Explicitly sort by Date to ensure order regardless of sheet append location
+            df = df.sort_values("Date", ascending=True)
+            
             df['Distance (km)'] = pd.to_numeric(df['Distance (km)'], errors='coerce').fillna(0)
             df['Elevation Gain (m)'] = pd.to_numeric(df['Elevation Gain (m)'], errors='coerce').fillna(0)
             df['Duration (min)'] = pd.to_numeric(df['Duration (min)'], errors='coerce').fillna(0)
