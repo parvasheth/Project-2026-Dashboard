@@ -298,7 +298,21 @@ def ask_gemini_coach(prompt_text):
     Raises exception on failure so bad results aren't cached.
     """
     try:
-        GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+        # Load environment from .env if available (Local fallback)
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        
+        GENAI_API_KEY = None
+        if "GEMINI_API_KEY" in st.secrets:
+            GENAI_API_KEY = st.secrets["GEMINI_API_KEY"]
+        else:
+            GENAI_API_KEY = os.getenv("GEMINI_API_KEY")
+            
+        if not GENAI_API_KEY:
+             # Graceful degradation if key is missing
+             return "Coach is offline (Missing API Key)."
+             
         genai.configure(api_key=GENAI_API_KEY)
         
         # Try Flash models first, then standard Pro if needed
