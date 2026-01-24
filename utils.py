@@ -91,7 +91,8 @@ def load_data():
             
         return df
     except Exception as e:
-        st.error(f"Error loading activity data: {e}")
+        masked_key = SHEET_KEY[:5] + "..." if SHEET_KEY else "None"
+        st.error(f"Error loading activity data with Key '{masked_key}': {e}")
         return pd.DataFrame()
 
 def load_wellness_data():
