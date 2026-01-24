@@ -8,8 +8,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
 # Load environment variables
+# Load environment variables
 load_dotenv()
-SHEET_KEY = os.getenv("GOOGLE_SHEET_KEY")
+SHEET_KEY = os.getenv("GOOGLE_SHEET_KEY") or (st.secrets["GOOGLE_SHEET_KEY"] if "GOOGLE_SHEET_KEY" in st.secrets else None)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Physiology Constants ---
@@ -46,10 +47,11 @@ def get_gspread_client():
             client = gspread.authorize(creds)
             return client
             
-        st.error("Credentials not found. Setup st.secrets['gcp_service_account'] or add service_account.json locally.")
+        st.error(f"Credentials not found. Available keys in secrets: {list(st.secrets.keys())}. Setup st.secrets['gcp_service_account'] or add service_account.json locally.")
         return None
         
     except Exception as e:
+        # Debugging: show keys even on unexpected error if helpful, but usually e covers it
         st.error(f"Authentication Error: {e}")
         return None
 
