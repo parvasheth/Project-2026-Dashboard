@@ -11,6 +11,14 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 SHEET_KEY = os.getenv("GOOGLE_SHEET_KEY") or (st.secrets["GOOGLE_SHEET_KEY"] if "GOOGLE_SHEET_KEY" in st.secrets else None)
+
+# Auto-extract ID if full URL is pasted
+if SHEET_KEY and "docs.google.com" in SHEET_KEY:
+    try:
+        SHEET_KEY = SHEET_KEY.split("/d/")[1].split("/")[0]
+    except IndexError:
+        pass # Keep original if parse fails
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Physiology Constants ---
