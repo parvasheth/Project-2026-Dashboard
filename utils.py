@@ -25,15 +25,30 @@ def get_gspread_client():
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive",
         ]
-        # Locate service account file
+        
+        # 1. Cloud Deployment: Check for st.secrets
+        # Ensure your secrets.toml has [gcp_service_account] section
+        if "gcp_service_account" in st.secrets:
+            # st.secrets returns a plain dict for the section
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            # Fix newline issues in private_key if inherited from TOML
+            if "private_key" in creds_dict:
+                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                 
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            return client
+
+        # 2. Local Development: Check for service_account.json
         creds_path = os.path.join(BASE_DIR, "service_account.json")
-        if not os.path.exists(creds_path):
-            st.error(f"Credentials not found at {creds_path}")
-            return None
+        if os.path.exists(creds_path):
+            creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+            client = gspread.authorize(creds)
+            return client
             
-        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
-        client = gspread.authorize(creds)
-        return client
+        st.error("Credentials not found. Setup st.secrets['gcp_service_account'] or add service_account.json locally.")
+        return None
+        
     except Exception as e:
         st.error(f"Authentication Error: {e}")
         return None
