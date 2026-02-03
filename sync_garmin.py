@@ -12,16 +12,21 @@ from garminconnect import (
     GarminConnectTooManyRequestsError,
 )
 from dotenv import load_dotenv
+import pytz
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+script_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(script_dir, '.env'))
 
+# Garmin Credentials
 GARMIN_EMAIL = os.getenv("GARMIN_EMAIL")
 GARMIN_PASSWORD = os.getenv("GARMIN_PASSWORD")
+
+# Google Sheets Credentials
+SERVICE_ACCOUNT_FILE = os.path.join(script_dir, 'service_account.json')
 GOOGLE_SHEET_KEY = os.getenv("GOOGLE_SHEET_KEY")
 
 if not GARMIN_EMAIL or not GARMIN_PASSWORD or not GOOGLE_SHEET_KEY:
@@ -202,10 +207,21 @@ def get_wellness_data(garmin_client, sheet_conn):
             
             # Parse
             # Summary fields
-            steps = summary.get("totalSteps", 0)
-            rhr = summary.get("restingHeartRate", 0)
-            stress = summary.get("averageStressLevel", 0)
-            vo2 = summary.get("vo2Max", 0)
+            steps = summary.get("totalSteps") or 0
+            rhr = summary.get("restingHeartRate") or 0
+            stress = summary.get("averageStressLevel") or 0
+            vo2 = summary.get("vo2MaxValue") or 0
+            
+            # Fallback: Training Status
+            if vo2 == 0:
+                try:
+                     logging.info(f"VO2 0 in summary, trying Training Status for {date_str}")
+                     train_status = garmin_client.get_training_status(date_str)
+                     # usually returns dict with 'vo2Max'
+                     if train_status and isinstance(train_status, dict):
+                         vo2 = train_status.get('vo2Max') or 0
+                except Exception as e:
+                     logging.warning(f"Training status failed: {e}")
             
             # Body Battery
             # bb_data is usually a list of values. We want stats if available or calc.
@@ -217,27 +233,27 @@ def get_wellness_data(garmin_client, sheet_conn):
                 # Just simplified check:
                 if isinstance(bb_data, list):
                    # It might be list of dicts with 'value'
-                   vals = [x['value'] for x in bb_data if 'value' in x]
+                   vals = [x['value'] for x in bb_data if 'value' in x and x['value'] is not None]
                    if vals:
                        bb_max = max(vals)
                        bb_min = min(vals)
                 elif isinstance(bb_data, dict):
                      # sometimes returned as dict with bodyBatteryValueDescriptorDTOList
-                     vals = [x['bodyBatteryLevel'] for x in bb_data.get('bodyBatteryValuesArray', []) if 'bodyBatteryLevel' in x]
+                     vals = [x['bodyBatteryLevel'] for x in bb_data.get('bodyBatteryValuesArray', []) if 'bodyBatteryLevel' in x and x['bodyBatteryLevel'] is not None]
                      if vals:
                         bb_max = max(vals)
                         bb_min = min(vals)
 
             # Sleep
-            sleep_score = sleep_data.get("dailySleepDTO", {}).get("sleepScores", {}).get("overall", {}).get("value", 0)
-            sleep_sec = sleep_data.get("dailySleepDTO", {}).get("sleepTimeSeconds", 0)
+            sleep_score = sleep_data.get("dailySleepDTO", {}).get("sleepScores", {}).get("overall", {}).get("value") or 0
+            sleep_sec = sleep_data.get("dailySleepDTO", {}).get("sleepTimeSeconds") or 0
             sleep_hours = round(sleep_sec / 3600, 2)
             
             # HRV
-            hrv_ms = hrv_data.get("hrvSummary", {}).get("weeklyAverage", 0) # Fallback
+            hrv_ms = hrv_data.get("hrvSummary", {}).get("weeklyAverage") or 0 # Fallback
             # Try to get nightly avg
             if hrv_data.get("hrvSummary", {}).get("lastNightAvg"):
-                hrv_ms = hrv_data.get("hrvSummary", {}).get("lastNightAvg")
+                hrv_ms = hrv_data.get("hrvSummary", {}).get("lastNightAvg") or 0
 
             # Append
             wellness_rows.append([
@@ -266,25 +282,168 @@ def get_wellness_data(garmin_client, sheet_conn):
         wellness_sheet.append_rows(wellness_rows, value_input_option="USER_ENTERED")
         logging.info(f"Synced {len(wellness_rows)} days of wellness data.")
 
+def get_intraday_data(garmin_client, start_date, days=3):
+    """Fetch intraday data (HR, Stress, Sleep Stages) for the last N days."""
+    intraday_data = []
+    
+    # Calculate date range (Today back to N days ago)
+    end_date = datetime.date.today()
+    start = end_date - datetime.timedelta(days=days)
+    
+    current = end_date
+    while current >= start:
+        date_str = current.isoformat()
+        try:
+            logging.info(f"Fetching Intraday: {date_str}...")
+            
+            # 1. Heart Rate (Values are [timestamp_ms, value])
+            hr_data = garmin_client.get_heart_rates(date_str)
+            hr_values = hr_data.get('heartRateValues', [])
+            if hr_values:
+                for entry in hr_values:
+                    if entry[1]: # Scan for valid HR
+                        # Timestamp is GMT ms
+                        ts = datetime.datetime.fromtimestamp(entry[0]/1000, pytz.utc)
+                        intraday_data.append({
+                            "Type": "HeartRate",
+                            "Date": date_str,
+                            "Timestamp": ts.isoformat(),
+                            "Value": entry[1]
+                        })
+
+            # 2. Stress & Body Battery
+            stress_data = garmin_client.get_stress_data(date_str)
+            stress_values = stress_data.get('stressValuesArray', [])
+            bb_values = stress_data.get('bodyBatteryValuesArray', [])
+            
+            # Stress: [timestamp, level]
+            for entry in stress_values:
+                if entry[1] is not None and entry[1] >= 0:
+                    ts = datetime.datetime.fromtimestamp(entry[0]/1000, pytz.utc)
+                    intraday_data.append({
+                        "Type": "Stress",
+                        "Date": date_str,
+                        "Timestamp": ts.isoformat(),
+                        "Value": entry[1]
+                    })
+            
+            # Body Battery
+            for entry in bb_values:
+                 if len(entry) > 0:
+                     ts = datetime.datetime.fromtimestamp(entry[0]/1000, pytz.utc)
+                     val = entry[-1] # Level is usually last
+                     if val is not None:
+                        intraday_data.append({
+                            "Type": "BodyBattery",
+                            "Date": date_str,
+                            "Timestamp": ts.isoformat(),
+                            "Value": val
+                        })
+
+            # 3. Sleep Levels (Hypnogram)
+            sleep_data = garmin_client.get_sleep_data(date_str)
+            sleep_levels = sleep_data.get('dailySleepDTO', {}).get('sleepLevels', [])
+            # Actually get_sleep_data returns the full object. 'dailySleepDTO' might not be top level in some versions.
+            # Using logic from reference: all_sleep_data.get("sleepLevels")
+            if not sleep_levels:
+                sleep_levels = sleep_data.get('sleepLevels', [])
+                
+            for entry in sleep_levels:
+                # {startGMT, endGMT, activityLevel}
+                # activityLevel: 0=Unknown, 1=Deep, 2=Light, 3=REM, 4=Awake
+                if 'startGMT' in entry and 'endGMT' in entry:
+                     # Formats are like "2025-01-23T05:00:00.000"
+                     intraday_data.append({
+                         "Type": "SleepStage",
+                         "Date": date_str,
+                         # Use Start Time as Timestamp
+                         "Timestamp": entry['startGMT'], 
+                         "EndTimestamp": entry['endGMT'],
+                         "Value": entry.get('activityLevel')
+                     })
+
+            # 4. Steps Intraday (15-min or 1-min intervals)
+            # garmin_connect.get_steps_data(date) returns list of dicts: {startGMT, endGMT, steps}
+            steps_data = garmin_client.get_steps_data(date_str)
+            if steps_data:
+                for entry in steps_data:
+                    # Filter out zero steps to save space? Keep them for heatmap continuity.
+                    if 'steps' in entry and entry['steps'] > 0:
+                         intraday_data.append({
+                             "Type": "Steps",
+                             "Date": date_str,
+                             "Timestamp": entry['startGMT'], # Start time
+                             "Value": entry['steps']
+                         })
+
+            # 5. Respiration Intraday
+            # garmin_connect.get_respiration_data(date) -> dict with 'respirationValuesArray'
+            respiration_data = garmin_client.get_respiration_data(date_str)
+            if respiration_data:
+                resp_values = respiration_data.get('respirationValuesArray', [])
+                for entry in resp_values:
+                    # [timestamp_GMT_ms, value]
+                    if entry[1]:
+                        ts = datetime.datetime.fromtimestamp(entry[0]/1000, pytz.utc)
+                        intraday_data.append({
+                            "Type": "Respiration",
+                            "Date": date_str,
+                            "Timestamp": ts.isoformat(),
+                            "Value": entry[1]
+                        })
+
+            # 6. Body Composition (Weight)
+            weight_data = garmin_client.get_weigh_ins(date_str, date_str)
+            if weight_data:
+                daily_summaries = weight_data.get('dailyWeightSummaries', [])
+                if daily_summaries:
+                    # Usually just one summary per day
+                    summary = daily_summaries[0]
+                    all_metrics = summary.get('allWeightMetrics', [])
+                    for metric in all_metrics:
+                         if 'weight' in metric and metric['weight']:
+                             ts = datetime.datetime.fromtimestamp(metric['timestampGMT']/1000, pytz.utc)
+                             intraday_data.append({
+                                 "Type": "BodyComposition",
+                                 "Date": date_str,
+                                 "Timestamp": ts.isoformat(),
+                                 "Value": metric['weight'] / 1000.0, # g to kg
+                             })
+
+        except Exception as e:
+            logging.error(f"Failed Intraday for {date_str}: {e}")
+        
+        current -= datetime.timedelta(days=1)
+        
+    return intraday_data
+
+def sync_wellness_intraday(garmin_client, spreadsheet):
+    """Sync last 3 days of Intraday data to 'Wellness_Intraday' sheet."""
+    try:
+        data = get_intraday_data(garmin_client, datetime.date.today(), days=3)
+        if not data:
+            return
+            
+        df = pd.DataFrame(data)
+        df = df.where(pd.notnull(df), "") # Replace NaNs with empty string for JSON compliance
+        
+        try:
+            wks = spreadsheet.worksheet("Wellness_Intraday")
+            wks.clear()
+        except gspread.exceptions.WorksheetNotFound:
+            wks = spreadsheet.add_worksheet("Wellness_Intraday", rows=10000, cols=10)
+            
+        # Write headers and data
+        wks.update(range_name='A1', values=[df.columns.values.tolist()] + df.values.tolist())
+        logging.info(f"Synced {len(df)} rows to Wellness_Intraday")
+        
+    except Exception as e:
+        logging.error(f"Wellness Intraday Sync failed: {e}")
+
 def sync():
     garmin_client = init_garmin()
-    sheet = init_gspread() # client.open_by_key(KEY) returns Spreadsheet object, not worksheet if using open_by_key().sheet1?
-    # Wait, init_gspread returns .sheet1 currently.
-    # We need the SPREADSHEET object to access multiple worksheets.
-    
-    # Let's adjust init_gspread logic temporarily or re-open here?
-    # Easier: Re-init or fix init_gspread.
-    # checking init_gspread implementation in lines 46-61.
-    # line 58: return client.open_by_key(GOOGLE_SHEET_KEY).sheet1
-    # We need the parent spreadsheet.
-    
-    # RE-READ init_gspread from file:
-    # It returns sheet1.
-    # So 'sheet' in sync() is a Worksheet.
-    # We need the Spreadsheet to add/get 'Wellness'.
-    
-    # Workaround: Use sheet.spreadsheet to get parent
-    spreadsheet = sheet.spreadsheet
+    sheet = init_gspread() # Returns Worksheet
+    spreadsheet = sheet.spreadsheet # Get Spreadsheet
     
     if not garmin_client or not sheet:
         logging.error("Initialization failed. Aborting sync.")
@@ -316,8 +475,11 @@ def sync():
         else:
             logging.info("No new activities to sync.")
     
-    # 2. Wellness Sync (New)
+    # 2. Daily Wellness Sync
     get_wellness_data(garmin_client, spreadsheet)
+
+    # 3. Intraday Wellness Sync
+    sync_wellness_intraday(garmin_client, spreadsheet)
 
 if __name__ == "__main__":
     sync()
