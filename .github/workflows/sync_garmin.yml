@@ -1,0 +1,38 @@
+name: Garmin Sync
+
+on:
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Create Service Account File
+      env:
+        GCP_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      run: |
+        echo "$GCP_JSON" > service_account.json
+        
+    - name: Run Sync
+      env:
+        GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+        GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+        GOOGLE_SHEET_KEY: ${{ secrets.GOOGLE_SHEET_KEY }}
+      run: |
+        python sync_garmin.py
