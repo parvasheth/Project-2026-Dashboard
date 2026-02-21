@@ -202,20 +202,34 @@ def format_duration_ms(minutes):
     secs = int((minutes - mins) * 60)
     return f"{mins}:{secs:02d}"
 
-from utils import load_data, calculate_physiology
+from utils import load_data, calculate_physiology, increment_page_views
 
 df = load_data()
 
+# --- Page View Counter ---
+if 'page_views' not in st.session_state:
+    try:
+        # Increment only once per session
+        st.session_state.page_views = increment_page_views()
+    except:
+        st.session_state.page_views = 0
+
+views_display = f"👁️ {st.session_state.page_views} views" if st.session_state.page_views > 0 else "👁️ ~ views"
+
 # --- Header ---
-# --- Header ---
-st.markdown("""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="font-size: 3rem; margin-bottom: 0; background: -webkit-linear-gradient(45deg, #ffffff, #00C805); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            Parva's Project 2026
-        </h1>
-        <a href="https://instagram.com/the_working_athlete" target="_blank" style="color: #8C8C8C; text-decoration: none; font-size: 1.1rem; border-bottom: 1px dotted #8C8C8C;">
-            @the_working_athlete
-        </a>
+st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <div style="flex: 1; text-align: center;">
+            <h1 style="font-size: 3rem; margin-bottom: 0; background: -webkit-linear-gradient(45deg, #ffffff, #00C805); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Parva's Project 2026
+            </h1>
+            <a href="https://instagram.com/the_working_athlete" target="_blank" style="color: #8C8C8C; text-decoration: none; font-size: 1.1rem; border-bottom: 1px dotted #8C8C8C;">
+                @the_working_athlete
+            </a>
+        </div>
+        <div style="color: #8C8C8C; font-size: 0.9rem; padding-top: 15px;">
+            {views_display}
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
