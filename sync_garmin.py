@@ -57,7 +57,7 @@ def init_gspread():
             "https://www.googleapis.com/auth/drive",
         ]
         creds = ServiceAccountCredentials.from_json_keyfile_name(
-            os.path.join(BASE_DIR, "service_account.json"), scope
+            SERVICE_ACCOUNT_FILE, scope
         )
         client = gspread.authorize(creds)
         logging.info("Google Sheets login successful.")
