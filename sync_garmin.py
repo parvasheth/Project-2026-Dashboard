@@ -164,20 +164,20 @@ def get_wellness_data(garmin_client, sheet_conn):
     try:
         existing_data = wellness_sheet.get_all_records()
         existing_dates = set(row.get("Date") for row in existing_data)
-        # Find last date
+        # Find last date. We do NOT add 1 day so we overwrite the last recorded day (usually today) with intraday updates.
         if existing_dates:
             last_date_str = max(existing_dates)
-            start_date = datetime.datetime.strptime(last_date_str, "%Y-%m-%d").date() + datetime.timedelta(days=1)
+            start_date = datetime.datetime.strptime(last_date_str, "%Y-%m-%d").date()
         else:
             start_date = datetime.date(2025, 1, 1)
     except Exception:
         existing_dates = set()
+        existing_data = [] # ensure empty list instead of fail
         start_date = datetime.date(2025, 1, 1)
 
     today = datetime.date.today()
     if start_date > today:
-        logging.info("Wellness data is up to date.")
-        return
+        start_date = today
 
     logging.info(f"Syncing Wellness data from {start_date} to {today}...")
     
@@ -208,6 +208,7 @@ def get_wellness_data(garmin_client, sheet_conn):
             # Parse
             # Summary fields
             steps = summary.get("totalSteps") or 0
+            active_cal = summary.get("activeKilocalories") or 0
             rhr = summary.get("restingHeartRate") or 0
             stress = summary.get("averageStressLevel") or 0
             vo2 = summary.get("vo2MaxValue") or 0
@@ -255,8 +256,7 @@ def get_wellness_data(garmin_client, sheet_conn):
             if hrv_data.get("hrvSummary", {}).get("lastNightAvg"):
                 hrv_ms = hrv_data.get("hrvSummary", {}).get("lastNightAvg") or 0
 
-            # Append
-            wellness_rows.append([
+            new_row = [
                 date_str,
                 steps,
                 rhr,
@@ -266,9 +266,19 @@ def get_wellness_data(garmin_client, sheet_conn):
                 sleep_score,
                 sleep_hours,
                 hrv_ms,
-                vo2
-            ])
-            logging.info(f"Fetched wellness for {date_str}")
+                vo2,
+                active_cal
+            ]
+
+            if date_str in existing_dates:
+                row_idx = next((i for i, row in enumerate(existing_data) if str(row.get("Date")).startswith(date_str)), None)
+                if row_idx is not None:
+                    sheet_row = row_idx + 2
+                    wellness_sheet.update(range_name=f"A{sheet_row}", values=[new_row])
+                    logging.info(f"Updated wellness for {date_str}")
+            else:
+                wellness_rows.append(new_row)
+                logging.info(f"Fetched wellness for {date_str}")
             
         except Exception as e:
             logging.error(f"Failed to fetch/parse wellness for {date_str}: {e}")
