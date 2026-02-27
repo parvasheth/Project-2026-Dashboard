@@ -123,7 +123,7 @@ def load_wellness_data():
             df['Date'] = pd.to_datetime(df['Date'])
             df = df.sort_values("Date", ascending=True)
             # Ensure numeric
-            cols = ["Steps", "RHR", "Stress_Avg", "BodyBattery_Max", "BodyBattery_Min", "Sleep_Score", "Sleep_Hours", "HRV_ms", "VO2Max"]
+            cols = ["Steps", "RHR", "Stress_Avg", "BodyBattery_Max", "BodyBattery_Min", "Sleep_Score", "Sleep_Hours", "HRV_ms", "VO2Max", "ActiveKilocalories"]
             for c in cols:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
