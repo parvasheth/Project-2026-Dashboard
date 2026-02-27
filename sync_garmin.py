@@ -225,25 +225,23 @@ def get_wellness_data(garmin_client, sheet_conn):
                      logging.warning(f"Training status failed: {e}")
             
             # Body Battery
-            # bb_data is usually a list of values. We want stats if available or calc.
-            # garminconnect usually returns a list of dictionaries for valid timeline
             bb_max = 0
             bb_min = 0
             if bb_data:
-                # Assuming bb_data structure containing 'bodyBatteryValuesArray' or similar
-                # Just simplified check:
-                if isinstance(bb_data, list):
-                   # It might be list of dicts with 'value'
-                   vals = [x['value'] for x in bb_data if 'value' in x and x['value'] is not None]
-                   if vals:
-                       bb_max = max(vals)
-                       bb_min = min(vals)
-                elif isinstance(bb_data, dict):
-                     # sometimes returned as dict with bodyBatteryValueDescriptorDTOList
-                     vals = [x['bodyBatteryLevel'] for x in bb_data.get('bodyBatteryValuesArray', []) if 'bodyBatteryLevel' in x and x['bodyBatteryLevel'] is not None]
-                     if vals:
-                        bb_max = max(vals)
-                        bb_min = min(vals)
+                # Based on garminconnect returning a list of dicts per day
+                if isinstance(bb_data, list) and len(bb_data) > 0:
+                   first_item = bb_data[0]
+                   if "bodyBatteryValuesArray" in first_item:
+                       # This is the array of [timestamp, level] or similar
+                       vals = [x[1] for x in first_item["bodyBatteryValuesArray"] if len(x) >= 2 and x[1] is not None]
+                       if vals:
+                           bb_max = max(vals)
+                           bb_min = min(vals)
+                   elif "value" in first_item:
+                       vals = [x['value'] for x in bb_data if 'value' in x and x['value'] is not None]
+                       if vals:
+                           bb_max = max(vals)
+                           bb_min = min(vals)
 
             # Sleep
             sleep_score = sleep_data.get("dailySleepDTO", {}).get("sleepScores", {}).get("overall", {}).get("value") or 0

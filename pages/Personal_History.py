@@ -241,7 +241,7 @@ with p1: # Activity timeline
              activ_7d, x_start="Date", x_end="End", y="NormalizedType",
              color="NormalizedType",
              height=350, color_discrete_sequence=px.colors.qualitative.Prism,
-             hover_name="Title", hover_data={"NormalizedType": False, "Date": "|%b %d, %H:%M", "Distance (km)": ':.2f'}
+             hover_data={"NormalizedType": False, "Date": "|%b %d, %H:%M", "Distance (km)": ':.2f'}
          )
          fig_act.update_layout(
              title=dict(text="Recent Activities Timeline", font=dict(size=18, color="#e0e0e0")),
