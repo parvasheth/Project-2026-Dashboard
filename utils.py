@@ -193,34 +193,61 @@ def calculate_physiology(df):
     
     return df_phys
 
-def increment_page_views():
-    """Increment and return the page view counter using a Metadata sheet."""
+def get_metadata(key, default=None):
+    """Get a value from the Metadata sheet."""
     client = get_gspread_client()
-    if not client or not SHEET_KEY: return 0
-
+    if not client or not SHEET_KEY: return default
     try:
         sh = client.open_by_key(SHEET_KEY)
-        
-        # Try to get the Metadata sheet, or create it if missing
+        try:
+            meta_sheet = sh.worksheet("Metadata")
+        except gspread.exceptions.WorksheetNotFound:
+            return default
+            
+        cell = meta_sheet.find(key)
+        if cell:
+            val = meta_sheet.cell(cell.row, cell.col + 1).value
+            return val if val is not None else default
+        return default
+    except Exception as e:
+        print(f"DEBUG ERROR (get_metadata): {e}")
+        return default
+
+def set_metadata(key, value):
+    """Set a value in the Metadata sheet."""
+    client = get_gspread_client()
+    if not client or not SHEET_KEY: return False
+    try:
+        sh = client.open_by_key(SHEET_KEY)
         try:
             meta_sheet = sh.worksheet("Metadata")
         except gspread.exceptions.WorksheetNotFound:
             meta_sheet = sh.add_worksheet(title="Metadata", rows=10, cols=2)
             meta_sheet.append_row(["Key", "Value"])
-            meta_sheet.append_row(["PageViews", 0])
             
-        # Find the row for PageViews
-        cell = meta_sheet.find("PageViews")
+        cell = meta_sheet.find(key)
         if cell:
-            current_views_str = meta_sheet.cell(cell.row, cell.col + 1).value
-            current_views = int(current_views_str) if current_views_str else 0
-            new_views = current_views + 1
-            meta_sheet.update_cell(cell.row, cell.col + 1, new_views)
-            return new_views
+            meta_sheet.update_cell(cell.row, cell.col + 1, value)
         else:
-            meta_sheet.append_row(["PageViews", 1])
-            return 1
-            
+            meta_sheet.append_row([key, value])
+        return True
     except Exception as e:
-        print(f"DEBUG ERROR (increment_page_views): {e}")
-        return 0
+        print(f"DEBUG ERROR (set_metadata): {e}")
+        return False
+
+def increment_page_views():
+    """Increment and return the page view counter using a Metadata sheet."""
+    current_views_str = get_metadata("PageViews", default="0")
+    try:
+        current_views = int(current_views_str)
+    except:
+        current_views = 0
+    new_views = current_views + 1
+    set_metadata("PageViews", new_views)
+    return new_views
+
+def save_training_plan(plan_json_str):
+    return set_metadata("TrainingPlan", plan_json_str)
+
+def load_training_plan():
+    return get_metadata("TrainingPlan")
