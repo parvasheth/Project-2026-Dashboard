@@ -23,15 +23,17 @@ def _prepare_training_data(df_activ, df_phys):
     df_recent = df_activ[df_activ['Date'].dt.date >= six_months_ago].copy()
     
     # Filter to runs only
-    df_runs = df_recent[df_recent['NormalizedType'].isin(['Running', 'Trail_Running', 'Treadmill_Running'])].copy()
+    df_runs = df_recent[df_recent['NormalizedType'].isin(['running', 'trail_running', 'treadmill_running'])].copy()
     if df_runs.empty:
         return '{"message": "No running data in the last 6 months."}'
         
     df_runs['DateStr'] = df_runs['Date'].dt.strftime('%Y-%m-%d')
     
     # Extract key metrics
-    export_cols = ['DateStr', 'NormalizedType', 'Distance (km)', 'Duration (min)', 'Avg HR', 'Elevation Gain (m)']
-    runs_list = df_runs[export_cols].dropna().to_dict(orient='records')
+    df_runs['Pace (min/km)'] = (df_runs['Duration (min)'] / df_runs['Distance (km)']).round(2).fillna(0)
+    export_cols = ['DateStr', 'NormalizedType', 'Distance (km)', 'Duration (min)', 'Pace (min/km)', 'Avg HR', 'Elevation Gain (m)', 'TRIMP', 'Max Temp']
+    # We must be careful because older runs might not have TRIMP or Max Temp yet until sync is run
+    runs_list = df_runs[export_cols].fillna(0).to_dict(orient='records')
     
     # Condense physiology (last 30 days of TRIMP/CTL)
     phys_summary = []
@@ -86,7 +88,8 @@ def generate_training_plan(goal_distance, duration_weeks, profile_context, df_ac
     
     ### DATA AUDIT PROTOCOL
     I am providing you a JSON string containing the user's running history (last 6 months) and physiology TRIMP/CTL load (last 30 days).
-    Perform a 'Deep Vibe Analysis' looking at their historical distance, elevation, heart rate, and training load (CTL). Ensure the new plan avoids the 'Injury Red Zone' based on their current load.
+    Perform a 'Deep Vibe Analysis' looking at their historical distance, pacing dynamics (minutes per km), elevation, heart rate, temperature (Max Temp in Celsius), and training load (TRIMP/CTL). 
+    Ensure the new plan avoids the 'Injury Red Zone' based on their current load, and adjusts paces if they are running in high heat.
     
     ### PLAN GENERATION LOGIC
     - Periodization: Use a 3-week build / 1-week recover cycle.

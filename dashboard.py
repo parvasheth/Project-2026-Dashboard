@@ -773,7 +773,6 @@ for index, row in df_feed.iterrows():
     main_stat = ""
     sub_stat = ""
     
-    # Running (and Treadmill)
     if 'running' in norm_type:
         dist = row['Distance (km)']
         dur = row['Duration (min)']
@@ -783,8 +782,13 @@ for index, row in df_feed.iterrows():
         pace = dur / dist if dist > 0 else 0
         pace_fmt = format_duration_ms(pace)
         
+        trimp = row.get('TRIMP', 0)
+        temp = row.get('Max Temp', 0)
+        temp_str = f" • {temp} °C" if temp else ""
+        trimp_str = f" • TRIMP: {int(trimp)}" if trimp else ""
+        
         main_stat = f"{dist} km"
-        sub_stat = f"{pace_fmt} /km • {int(hr)} bpm"
+        sub_stat = f"{pace_fmt} /km • {int(hr)} bpm{trimp_str}{temp_str}"
         
     # Strength
     elif 'strength' in norm_type:

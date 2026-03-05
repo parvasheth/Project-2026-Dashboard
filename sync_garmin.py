@@ -104,7 +104,10 @@ def process_activities(activities):
             "Max HR": activity.get("maxHR", 0),
             "Elevation Gain (m)": activity.get("totalElevationGain", 0),
             "Avg Speed (m/s)": avg_speed,
-            "Coordinates": f"{activity.get('startLatitude')},{activity.get('startLongitude')}" if activity.get('startLatitude') else None
+            "Coordinates": f"{activity.get('startLatitude')},{activity.get('startLongitude')}" if activity.get('startLatitude') else None,
+            "VO2Max": activity.get("vO2MaxValue", 0),
+            "Max Temp": activity.get("maxTemperature", 0),
+            "Min Temp": activity.get("minTemperature", 0)
         }
         data.append(row)
     return data

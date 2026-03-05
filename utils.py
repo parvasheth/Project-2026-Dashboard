@@ -94,6 +94,16 @@ def load_data():
             df['Duration (min)'] = pd.to_numeric(df['Duration (min)'], errors='coerce').fillna(0)
             df['Avg HR'] = pd.to_numeric(df['Avg HR'], errors='coerce').fillna(0)
             
+            # New Extracted Fields from Garmin (May not exist in older rows, so we use .get and fillna)
+            for new_col in ['VO2Max', 'Max Temp', 'Min Temp']:
+                if new_col in df.columns:
+                    df[new_col] = pd.to_numeric(df[new_col], errors='coerce').fillna(0)
+                else:
+                    df[new_col] = 0
+            
+            # Pre-calculate TRIMP for each activity row so we can display it in the Activity Feed
+            df['TRIMP'] = df.apply(lambda row: calculate_trimp(row['Duration (min)'], row['Avg HR']), axis=1)
+            
             # Normalize types
             df['NormalizedType'] = df['Type'].apply(lambda x: 'running' if 'running' in str(x).lower() else str(x).lower())
             
