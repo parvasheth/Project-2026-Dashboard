@@ -67,7 +67,6 @@ st.title("🧬 Elite Training Plan Engine")
 st.markdown("Powered by AI 'Deep Vibe' Data Audit")
 
 # --- Load Data Engine ---
-@st.cache_data(ttl=3600)
 def load_all_data():
     df_act = load_data()
     return df_act, calculate_physiology(df_act)

@@ -32,7 +32,11 @@ def _prepare_training_data(df_activ, df_phys):
     # Extract key metrics
     df_runs['Pace (min/km)'] = (df_runs['Duration (min)'] / df_runs['Distance (km)']).round(2).fillna(0)
     export_cols = ['DateStr', 'NormalizedType', 'Distance (km)', 'Duration (min)', 'Pace (min/km)', 'Avg HR', 'Elevation Gain (m)', 'TRIMP', 'Max Temp']
-    # We must be careful because older runs might not have TRIMP or Max Temp yet until sync is run
+    # Ensure all columns exist to prevent KeyError
+    for c in export_cols:
+        if c not in df_runs.columns:
+            df_runs[c] = 0
+            
     runs_list = df_runs[export_cols].fillna(0).to_dict(orient='records')
     
     # Condense physiology (last 30 days of TRIMP/CTL)
