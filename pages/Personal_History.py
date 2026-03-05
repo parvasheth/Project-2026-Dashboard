@@ -51,12 +51,15 @@ div[data-testid="stColumn"] > div > div > div > div {
 </style>
 """, unsafe_allow_html=True)
 
-nav1, nav2, _ = st.columns([1, 1, 4])
+nav1, nav2, nav3, _ = st.columns([1, 1, 1, 3])
 with nav1:
     if st.button("🏋️ Training Hub"):
         st.switch_page("dashboard.py")
 with nav2:
     st.button("🧘 Personal History", disabled=True) # Current Page
+with nav3:
+    if st.button("🧬 Training Plan Engine"):
+        st.switch_page("pages/Training_Plan.py")
 
 # --- Data Loading ---
 
