@@ -92,16 +92,18 @@ def process_activities(activities):
         
         # Calculate consistent pace (min/km) from speed (m/s) if applicable
         # Speed is m/s. 1 m/s = 3.6 km/h. Pace = 60 / (speed * 3.6)
-        avg_speed = activity.get("averageSpeed", 0)
+        dist_val = activity.get("distance") or 0
+        dur_val = activity.get("duration") or 0
+        avg_speed = activity.get("averageSpeed") or 0
         
         row = {
             "Activity ID": activity.get("activityId"),
             "Date": activity.get("startTimeLocal"),
             "Type": activity_type,
-            "Distance (km)": round(activity.get("distance", 0) / 1000, 2),
-            "Duration (min)": round(activity.get("duration", 0) / 60, 2),
-            "Avg HR": activity.get("averageHR", 0),
-            "Max HR": activity.get("maxHR", 0),
+            "Distance (km)": round(dist_val / 1000, 2),
+            "Duration (min)": round(dur_val / 60, 2),
+            "Avg HR": activity.get("averageHR") or 0,
+            "Max HR": activity.get("maxHR") or 0,
             "Elevation Gain (m)": activity.get("totalElevationGain", 0),
             "Avg Speed (m/s)": avg_speed,
             "Coordinates": f"{activity.get('startLatitude')},{activity.get('startLongitude')}" if activity.get('startLatitude') else None,
@@ -493,4 +495,11 @@ def sync():
     sync_wellness_intraday(garmin_client, spreadsheet)
 
 if __name__ == "__main__":
-    sync()
+    try:
+        sync()
+    except Exception as e:
+        import traceback
+        logging.error("FATAL UNHANDLED EXCEPTION IN SYNC SCRIPT:")
+        logging.error(traceback.format_exc())
+        import sys
+        sys.exit(1)
