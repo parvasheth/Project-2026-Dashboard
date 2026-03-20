@@ -66,10 +66,9 @@ def init_gspread():
         logging.error(f"Error connecting to Google Sheets: {e}")
         return None
 
-def get_activities(garmin_client):
-    """Fetch activities from Garmin starting from Jan 1, 2025."""
+def get_activities(garmin_client, start_date="2025-01-01"):
+    """Fetch activities from Garmin starting from start_date."""
     try:
-        start_date = "2025-01-01"
         today = datetime.date.today().isoformat()
         
         logging.info(f"Fetching activities from {start_date} to {today}...")
@@ -122,15 +121,31 @@ def sync():
         logging.error("Initialization failed. Aborting sync.")
         return
     
-    # Fetch existing IDs to avoid duplicates
+    # Fetch existing IDs to avoid duplicates and figure out the last extracted date
     try:
         existing_data = sheet.get_all_records()
         existing_ids = set(str(row.get("Activity ID")) for row in existing_data)
+        
+        existing_dates = []
+        for row in existing_data:
+            d_str = str(row.get("Date", ""))
+            if " " in d_str: d_str = d_str.split(" ")[0]
+            if "T" in d_str: d_str = d_str.split("T")[0]
+            if len(d_str) >= 10: existing_dates.append(d_str[:10])
+            
+        if existing_dates:
+            last_dt = datetime.datetime.strptime(max(existing_dates), "%Y-%m-%d").date()
+            # Fetch from 10 days before the latest record to catch delayed syncs
+            start_date = (last_dt - datetime.timedelta(days=10)).isoformat()
+        else:
+            start_date = "2025-01-01"
+            
     except Exception:
         existing_ids = set()
+        start_date = "2025-01-01"
         logging.info("Sheet might be empty or unreadable.")
 
-    activities = get_activities(garmin_client)
+    activities = get_activities(garmin_client, start_date)
     if not activities:
         logging.info("No activities found.")
         return
