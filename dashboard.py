@@ -137,25 +137,14 @@ st.markdown("""
             margin-bottom: 8px !important;
         }
         
-        /* 5. INSTAGRAM STORY MODE: Force Metric Columns to stay side-by-side */
-        div[data-testid="stHorizontalBlock"]:has(.stMetric) {
-            flex-wrap: nowrap !important;
-            gap: 5px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.stMetric) > div[data-testid="column"] {
-            width: 50% !important;
-            min-width: 50% !important;
-        }
-        .stMetric { padding: 5px !important; margin-bottom: 2px !important; }
-        
-        /* 6. Coach Card Adaptation */
+        /* 5. Coach Card Adaptation */
         .coach-card {
             padding: 8px !important;
             margin-bottom: 5px !important;
         }
         .coach-header { font-size: 0.9rem !important; margin-bottom: 2px !important; }
         
-        /* 7. Calendar & Feed */
+        /* 6. Calendar & Feed */
         .fire-grid-cell { font-size: 0.65rem !important; padding: 1px !important; }
         .feed-card { padding: 10px !important; }
         
@@ -491,11 +480,14 @@ with col_train_R:
     fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=10, r=10, t=30, b=10), height=160)
     st.plotly_chart(fig_gauge, use_container_width=True)
     
-    # Key Numbers below gauge
-    m1, m2, m3 = st.columns(3)
-    with m1: st.metric("CTL", f"{curr_ctl:.0f}")
-    with m2: st.metric("ATL", f"{curr_atl:.0f}")
-    with m3: st.metric("TSB", f"{curr_tsb:.0f}")
+    # Key Numbers tightly grouped in Flexbox to guarantee side-by-side alignment on vertical phones
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-around; background-color: #111; padding: 10px; border-radius: 8px; border: 1px solid #222; margin-top: -10px;">
+        <div style="text-align: center;"><div style="color:#8C8C8C; font-size:0.75rem; text-transform:uppercase;">CTL (Fitness)</div><div style="color:#00C805; font-size:1.4rem; font-weight:700;">{curr_ctl:.0f}</div></div>
+        <div style="text-align: center;"><div style="color:#8C8C8C; font-size:0.75rem; text-transform:uppercase;">ATL (Fatigue)</div><div style="color:#FF0080; font-size:1.4rem; font-weight:700;">{curr_atl:.0f}</div></div>
+        <div style="text-align: center;"><div style="color:#8C8C8C; font-size:0.75rem; text-transform:uppercase;">TSB (Form)</div><div style="color:#f2cc0c; font-size:1.4rem; font-weight:700;">{curr_tsb:.0f}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 
