@@ -132,19 +132,30 @@ st.markdown("""
         
         /* 4. Touch Targets - Make buttons taller/easier to tap */
         div[data-testid="stButton"] > button {
-            min_height: 45px !important;
+            min-height: 45px !important;
             font-size: 1rem !important;
             margin-bottom: 8px !important;
         }
         
-        /* 5. Coach Card Adaptation */
-        .coach-card {
-            padding: 10px !important;
-            margin-bottom: 15px !important;
+        /* 5. INSTAGRAM STORY MODE: Force Metric Columns to stay side-by-side */
+        div[data-testid="stHorizontalBlock"]:has(.stMetric) {
+            flex-wrap: nowrap !important;
+            gap: 5px !important;
         }
-        .coach-header { font-size: 0.9rem !important; }
+        div[data-testid="stHorizontalBlock"]:has(.stMetric) > div[data-testid="column"] {
+            width: 50% !important;
+            min-width: 50% !important;
+        }
+        .stMetric { padding: 5px !important; margin-bottom: 2px !important; }
         
-        /* 6. Calendar & Feed */
+        /* 6. Coach Card Adaptation */
+        .coach-card {
+            padding: 8px !important;
+            margin-bottom: 5px !important;
+        }
+        .coach-header { font-size: 0.9rem !important; margin-bottom: 2px !important; }
+        
+        /* 7. Calendar & Feed */
         .fire-grid-cell { font-size: 0.65rem !important; padding: 1px !important; }
         .feed-card { padding: 10px !important; }
         
@@ -458,7 +469,7 @@ with col_train_L:
         # Fatigue
         fig_pmc.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['ATL'], name='Fatigue', line=dict(color='#FF0080', width=2)))
         
-        fig_pmc.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=300, showlegend=True, legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"))
+        fig_pmc.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), height=220, showlegend=True, legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_pmc, use_container_width=True)
 
     with s1: plot_pmc(days_lookback=365)
@@ -470,17 +481,21 @@ with col_train_L:
 
 # --- Training Right: Gauge ---
 with col_train_R:
-    # 1. Gauge - Increased Height
+    # 1. Gauge - Compact
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = load_ratio,
-        title = {'text': "Workload Ratio"},
+        title = {'text': "Workload Ratio", 'font': {'size': 14}},
         gauge = {'axis': {'range': [0, 2]}, 'bar': {'color': status_color}, 'bgcolor': "rgba(0,0,0,0)", 'steps': [{'range': [0, 0.8], 'color': '#333'}, {'range': [0.8, 1.3], 'color': '#113311'}, {'range': [1.3, 1.5], 'color': '#333311'}, {'range': [1.5, 2.0], 'color': '#331111'}]}
     ))
-    # Increased height to 280 to match PMC better
-    fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=15, r=15, t=50, b=10), height=280)
+    fig_gauge.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=10, r=10, t=30, b=10), height=160)
     st.plotly_chart(fig_gauge, use_container_width=True)
-    st.caption(f"Status: {status_text} | CTL: {curr_ctl:.0f} | TSB: {curr_tsb:.0f}")
+    
+    # Key Numbers below gauge
+    m1, m2, m3 = st.columns(3)
+    with m1: st.metric("CTL", f"{curr_ctl:.0f}")
+    with m2: st.metric("ATL", f"{curr_atl:.0f}")
+    with m3: st.metric("TSB", f"{curr_tsb:.0f}")
 
 st.markdown("---")
 
