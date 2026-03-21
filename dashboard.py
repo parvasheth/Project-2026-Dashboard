@@ -202,7 +202,10 @@ def format_duration_ms(minutes):
     secs = int((minutes - mins) * 60)
     return f"{mins}:{secs:02d}"
 
-from utils import load_data, calculate_physiology, increment_page_views
+from utils import load_data, calculate_physiology, increment_page_views, render_sticky_nav
+
+# --- Sticky Top Navigation ---
+render_sticky_nav("dashboard")
 
 df = load_data()
 
@@ -289,15 +292,6 @@ div[data-testid="stColumn"] > div > div > div > div {
 </style>
 """, unsafe_allow_html=True)
 
-nav1, nav2, nav3, _ = st.columns([1, 1, 1, 3])
-with nav1:
-    st.button("🏋️ Training Hub", disabled=True)
-with nav2:
-    if st.button("🧘 Personal History"):
-        st.switch_page("pages/Personal_History.py")
-with nav3:
-    if st.button("🧬 Training Plan Engine"):
-        st.switch_page("pages/Training_Plan.py")
 
 # ==========================================
 # ROW 1: TRAINING STATUS
@@ -374,18 +368,28 @@ if "coach_default_val" not in st.session_state:
     st.session_state.coach_default_val = load_context()
 
 with st.expander("📝 AI Coach Settings & Context", expanded=False):
-    # We use a key 'coach_input' and on_change callback to trigger save
-    st.text_area(
-        "Coach Context", 
-        value=st.session_state.coach_default_val, 
-        placeholder="E.g. Feeling tired, traveling explicitly...", 
-        label_visibility="collapsed",
-        key="coach_input",
-        on_change=save_context
-    )
+    # Use a form so mobile users can explicitly submit instead of ctrl+enter
+    with st.form("coach_context_form", border=False):
+        new_ctx = st.text_area(
+            "Coach Context", 
+            value=st.session_state.coach_default_val, 
+            placeholder="E.g. Feeling tired, traveling explicitly...", 
+            label_visibility="collapsed"
+        )
+        submitted = st.form_submit_button("Save Context")
+        if submitted:
+            st.session_state.coach_input = new_ctx
+            st.session_state.coach_default_val = new_ctx
+            save_context()
+            st.rerun()
 
-# CSS for Coach Card
-st.markdown("""<style>.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }</style>""", unsafe_allow_html=True)
+# CSS for Coach Card & ensuring textarea text is visible
+st.markdown("""<style>
+.coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } 
+.coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+div[data-baseweb="textarea"] { background-color: #1e1e24 !important; }
+div[data-baseweb="textarea"] textarea { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+</style>""", unsafe_allow_html=True)
 
 # Additional Context for AI: Strength & Weekly Progress
 today = datetime.date.today()
@@ -745,9 +749,9 @@ st.subheader("Activity Feed")
 # Sort Controls
 s_col1, s_col2 = st.columns([1, 4])
 with s_col1:
-    sort_option = st.selectbox("Sort By", ["Date", "Distance", "Duration"])
+    sort_option = st.pills("Sort By", ["Date", "Distance", "Duration"], default="Date")
 with s_col2:
-    sort_order = st.radio("Order", ["Descending", "Ascending"], horizontal=True, label_visibility="collapsed")
+    sort_order = st.pills("Order", ["Descending", "Ascending"], default="Descending", label_visibility="collapsed")
 
 st.caption(f"Showing {len(df_filtered)} activities")
 

@@ -261,3 +261,82 @@ def save_training_plan(plan_json_str):
 
 def load_training_plan():
     return get_metadata("TrainingPlan")
+
+def render_sticky_nav(current_page="dashboard"):
+    """Renders a sticky top navbar for seamless page switching."""
+    st.markdown("""
+    <style>
+        /* Hide the Streamlit native header and sidebar toggle */
+        [data-testid="stHeader"] { display: none; }
+        
+        /* Create our custom sticky navbar area */
+        .sticky-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(14, 17, 23, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #2d2d2d;
+            flex-wrap: wrap; /* allow wrapping on super tiny screens */
+        }
+        
+        .sticky-nav a {
+            color: #b0b0b0;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: color 0.3s, transform 0.3s;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        .sticky-nav a:hover {
+            color: #00ff7f; /* Neon green */
+            background-color: rgba(0, 255, 127, 0.1);
+        }
+        
+        .sticky-nav a.active {
+            color: #00ff7f;
+            border-bottom: 2px solid #00ff7f;
+            border-radius: 0;
+        }
+
+        /* Top padding for main container */
+        .block-container {
+            padding-top: 80px !important;
+        }
+        
+        /* Mobile Specific Overrides for Navbar */
+        @media (max-width: 600px) {
+            .sticky-nav a {
+                font-size: 14px;
+                padding: 4px 6px;
+            }
+            .sticky-nav {
+                gap: 5px;
+                padding: 10px 0;
+            }
+            .block-container {
+                padding-top: 60px !important;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    dh_active = "class='active'" if current_page == "dashboard" else ""
+    ph_active = "class='active'" if current_page == "Personal_History" else ""
+    tp_active = "class='active'" if current_page == "Training_Plan" else ""
+    
+    st.markdown(f"""
+    <div class="sticky-nav">
+        <a href="/" target="_self" {dh_active}>🏋️ Training Hub</a>
+        <a href="/Personal_History" target="_self" {ph_active}>🧘 Personal History</a>
+        <a href="/Training_Plan" target="_self" {tp_active}>🧬 Training Plan Engine</a>
+    </div>
+    """, unsafe_allow_html=True)

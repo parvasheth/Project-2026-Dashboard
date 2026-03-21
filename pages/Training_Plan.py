@@ -55,13 +55,8 @@ div[data-testid="stColumn"] > div > div > div > div { gap: 0.5rem; }
 .nav-btn:hover { background: #22252b; border-color: #73bf69; }
 </style>
 """, unsafe_allow_html=True)
-nav1, nav2, nav3, _ = st.columns([1, 1, 1, 3])
-with nav1:
-    if st.button("🏋️ Training Hub"): st.switch_page("dashboard.py")
-with nav2:
-    if st.button("🧘 Personal History"): st.switch_page("pages/Personal_History.py")
-with nav3:
-    st.button("🧬 Training Plan Engine", disabled=True)
+from utils import render_sticky_nav
+render_sticky_nav("Training_Plan")
 
 st.title("🧬 Elite Training Plan Engine")
 st.markdown("Powered by AI 'Deep Vibe' Data Audit")
