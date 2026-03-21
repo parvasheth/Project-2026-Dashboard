@@ -364,8 +364,6 @@ with st.expander("📝 AI Coach Settings & Context", expanded=False):
 st.markdown("""<style>
 .coach-card { border: 1px solid #7c4dff; background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%); border-left: 5px solid #b388ff; padding: 15px; border-radius: 12px; margin-top: 5px; margin-bottom: 20px; color: #e0e0e0; font-size: 0.95rem; } 
 .coach-header { font-size: 1.0rem; font-weight: 600; color: #b388ff; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
-div[data-baseweb="textarea"] { background-color: #1e1e24 !important; }
-div[data-baseweb="textarea"] textarea { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
 </style>""", unsafe_allow_html=True)
 
 # Additional Context for AI: Strength & Weekly Progress
@@ -382,7 +380,7 @@ strength_this_week = len(df[
 days_left_in_week = 7 - today.isocalendar()[2] # 1=Mon, 7=Sun
 
 project_goals = "PROJECT 2026 GOALS: 2026km Running, 26 Half Marathons, 104 Strength Sessions, 200+ Active Days."
-user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {st.session_state.coach_input or 'None'}."
+user_context_str = f"User: Parva. Physiology: RHR 45, MaxHR 197. User Input: {st.session_state.get('coach_input', st.session_state.get('coach_default_val', 'None'))}."
 metrics_context_str = f"Current Status: Date {today}. CTL {curr_ctl:.1f}, ATL {curr_atl:.1f}, TSB {curr_tsb:.1f}. Workload Ratio {load_ratio:.2f} ({status_text}). Strength Sessions This Week: {strength_this_week}/2 ({days_left_in_week} days left)."
 
 prompt = f"""
