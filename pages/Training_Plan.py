@@ -9,8 +9,7 @@ st.set_page_config(page_title="Elite Training Engine | Project 2026", page_icon=
 # --- Grafana Dark Theme with Neon Accents ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0b0c0e; }
-    h1, h2, h3, h4, h5, p, span, label { color: #e0e0e0; font-family: 'Inter', sans-serif; }
+    h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; }
     .stMetric { background-color: #181b1f; padding: 10px; border-radius: 4px; border-left: 3px solid #73bf69; }
     .block-container { padding-top: 1rem; padding-bottom: 3rem; }
     #MainMenu {visibility: hidden;}

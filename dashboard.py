@@ -23,8 +23,6 @@ st.markdown("""
 <style>
     /* Global Background */
     .stApp {
-        background-color: #000000 !important;
-        color: #FFFFFF;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
@@ -161,28 +159,7 @@ st.markdown("""
         }
     }
     
-    /* --- BUTTON STYLING --- */
-    /* Primary Buttons (Refresh, Next/Prev) */
-    div[data-testid="stButton"] > button {
-        background-color: #111111;
-        color: #00C805;
-        border: 1px solid #333333;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    div[data-testid="stButton"] > button:hover {
-        border-color: #00C805;
-        color: #FFFFFF;
-        background-color: #00C80520;
-    }
-    
-    /* Expander Header */
-    .streamlit-expanderHeader {
-        background-color: #111111;
-        color: #FFFFFF;
-        border: 1px solid #333333;
-        border-radius: 8px;
-    }
+
     
 </style>
 """, unsafe_allow_html=True)

@@ -11,8 +11,7 @@ st.set_page_config(page_title="Personal History | Project 2026", page_icon="🧘
 # --- Grafana Dark Theme with Neon Accents ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0b0c0e; }
-    h1, h2, h3, h4, h5, p, span { color: #e0e0e0; font-family: 'Inter', sans-serif; }
+    h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; }
     .stMetric { background-color: #181b1f; padding: 10px; border-radius: 4px; border-left: 3px solid #73bf69; }
     .block-container { padding-top: 1rem; padding-bottom: 3rem; }
     /* Hide Streamlit elements */
@@ -20,36 +19,12 @@ st.markdown("""
     footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
-
 st.title("🧘 Personal History")
 
 # --- Data Loading ---
 df_daily = load_wellness_data()
 df_intra = load_intraday_data()
 df_activ = load_data() # For Activity Timeline
-
-# --- Custom Navigation ---
-st.markdown("""
-<style>
-div[data-testid="stColumn"] > div > div > div > div {
-    gap: 0.5rem;
-}
-.nav-btn {
-    width: 100%;
-    border: 1px solid #333;
-    background: #181b1f;
-    color: white;
-    padding: 10px;
-    text-align: center;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
-    display: block;
-}
-.nav-btn:hover { background: #22252b; border-color: #73bf69; }
-.nav-btn.active { background: #181b1f; border-color: #73bf69; color: #73bf69; }
-</style>
-""", unsafe_allow_html=True)
 
 from utils import render_sticky_nav
 render_sticky_nav("Personal_History")
