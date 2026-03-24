@@ -18,6 +18,9 @@ import pytz
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables
+import tempfile
+import pathlib
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(script_dir, '.env'))
 
@@ -33,13 +36,63 @@ if not GARMIN_EMAIL or not GARMIN_PASSWORD or not GOOGLE_SHEET_KEY:
     logging.error("Missing environment variables. Please check .env file.")
     exit(1)
 
-def init_garmin():
-    """Initialize Garmin Connect API."""
+def load_garmin_tokens_from_sheet(spreadsheet):
     try:
-        # Tries to use saved session first
+        meta_sheet = spreadsheet.worksheet("Metadata")
+        cell = meta_sheet.find("GarminTokens")
+        if cell:
+            return meta_sheet.cell(cell.row, cell.col + 1).value
+    except Exception:
+        pass
+    return None
+
+def save_garmin_tokens_to_sheet(spreadsheet, token_dir):
+    try:
+        token_data = {}
+        for p in pathlib.Path(token_dir).glob("*.json"):
+            with open(p, "r") as f:
+                token_data[p.name] = json.load(f)
+        
+        token_str = json.dumps(token_data)
+        
+        try:
+            meta_sheet = spreadsheet.worksheet("Metadata")
+        except:
+            meta_sheet = spreadsheet.add_worksheet(title="Metadata", rows=10, cols=2)
+            meta_sheet.append_row(["Key", "Value"])
+            
+        cell = meta_sheet.find("GarminTokens")
+        if cell:
+            meta_sheet.update_cell(cell.row, cell.col + 1, token_str)
+        else:
+            meta_sheet.append_row(["GarminTokens", token_str])
+    except Exception as e:
+        logging.error(f"Failed to save tokens to sheet: {e}")
+
+def init_garmin(spreadsheet=None):
+    """Initialize Garmin Connect API."""
+    token_dir = "/tmp/garmintokens"
+    try:
+        if spreadsheet:
+            token_str = load_garmin_tokens_from_sheet(spreadsheet)
+            if token_str:
+                token_data = json.loads(token_str)
+                os.makedirs(token_dir, exist_ok=True)
+                for filename, filedata in token_data.items():
+                    with open(os.path.join(token_dir, filename), "w") as f:
+                        json.dump(filedata, f)
+        
         garmin = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
-        garmin.login()
-        logging.info("Garmin login successful.")
+        try:
+            garmin.login(token_dir)
+            logging.info("Garmin login via tokens successful.")
+        except Exception:
+            logging.info("Token login failed or unavailable. Authenticating natively...")
+            garmin.login()
+            garmin.garth.dump(token_dir)
+            if spreadsheet:
+                save_garmin_tokens_to_sheet(spreadsheet, token_dir)
+            logging.info("Garmin native login successful and tokens saved.")
         return garmin
     except (
         GarminConnectConnectionError,
@@ -114,9 +167,10 @@ def process_activities(activities):
     return data
 
 def sync():
-    garmin_client = init_garmin()
+    # We must init gspread first to pass spreadsheet to garmin for token loading
     sheet = init_gspread()
-
+    spreadsheet = sheet.spreadsheet if sheet else None
+    garmin_client = init_garmin(spreadsheet)
     if not garmin_client or not sheet:
         logging.error("Initialization failed. Aborting sync.")
         return
@@ -124,6 +178,7 @@ def sync():
     # Fetch existing IDs to avoid duplicates and figure out the last extracted date
     try:
         existing_data = sheet.get_all_records()
+        logging.info(f"DEBUG: Found {len(existing_data)} rows in Google Sheets.")
         existing_ids = set(str(row.get("Activity ID")) for row in existing_data)
         
         existing_dates = []
@@ -132,18 +187,20 @@ def sync():
             if " " in d_str: d_str = d_str.split(" ")[0]
             if "T" in d_str: d_str = d_str.split("T")[0]
             if len(d_str) >= 10: existing_dates.append(d_str[:10])
-            
+        
+        logging.info(f"DEBUG: Extracted {len(existing_dates)} formatted dates.")
         if existing_dates:
             last_dt = datetime.datetime.strptime(max(existing_dates), "%Y-%m-%d").date()
-            # Fetch from 10 days before the latest record to catch delayed syncs
             start_date = (last_dt - datetime.timedelta(days=10)).isoformat()
+            logging.info(f"DEBUG: Using dynamic start_date: {start_date}")
         else:
             start_date = "2025-01-01"
+            logging.info("DEBUG: existing_dates is empty. Defaulting to 2025-01-01.")
             
-    except Exception:
+    except Exception as e:
         existing_ids = set()
         start_date = "2025-01-01"
-        logging.info("Sheet might be empty or unreadable.")
+        logging.error(f"Sheet might be empty or unreadable. Exception: {e}")
 
     activities = get_activities(garmin_client, start_date)
     if not activities:
@@ -171,6 +228,13 @@ def sync():
         logging.info(f"Synced {len(new_rows)} new activities.")
     else:
         logging.info("No new activities to sync.")
+
+    # 2. Daily Wellness Sync
+    # get_wellness_data requires the spreadsheet object, let's get it from the sheet
+    get_wellness_data(garmin_client, sheet.spreadsheet)
+
+    # 3. Intraday Wellness Sync
+    sync_wellness_intraday(garmin_client, sheet.spreadsheet)
 
 def get_wellness_data(garmin_client, sheet_conn):
     """Fetch daily wellness metrics (Steps, Sleep, Stress, BB, HRV)."""
@@ -468,46 +532,6 @@ def sync_wellness_intraday(garmin_client, spreadsheet):
     except Exception as e:
         logging.error(f"Wellness Intraday Sync failed: {e}")
 
-def sync():
-    garmin_client = init_garmin()
-    sheet = init_gspread() # Returns Worksheet
-    spreadsheet = sheet.spreadsheet # Get Spreadsheet
-    
-    if not garmin_client or not sheet:
-        logging.error("Initialization failed. Aborting sync.")
-        return
-    
-    # 1. Activities Sync (Existing Logic)
-    try:
-        # Fetch existing IDs to avoid duplicates
-        existing_data = sheet.get_all_records()
-        existing_ids = set(str(row.get("Activity ID")) for row in existing_data)
-    except Exception:
-        existing_ids = set()
-        logging.info("Sheet might be empty or unreadable.")
-
-    activities = get_activities(garmin_client)
-    if activities:
-        processed_data = process_activities(activities)
-        new_rows = []
-        for record in processed_data:
-            if str(record["Activity ID"]) not in existing_ids:
-                if not existing_ids and not new_rows:
-                     headers = list(record.keys())
-                     sheet.append_row(headers)
-                new_rows.append(list(record.values()))
-
-        if new_rows:
-            sheet.append_rows(new_rows, value_input_option="USER_ENTERED")
-            logging.info(f"Synced {len(new_rows)} new activities.")
-        else:
-            logging.info("No new activities to sync.")
-    
-    # 2. Daily Wellness Sync
-    get_wellness_data(garmin_client, spreadsheet)
-
-    # 3. Intraday Wellness Sync
-    sync_wellness_intraday(garmin_client, spreadsheet)
 
 if __name__ == "__main__":
     try:
