@@ -173,7 +173,8 @@ def sync():
     garmin_client = init_garmin(spreadsheet)
     if not garmin_client or not sheet:
         logging.error("Initialization failed. Aborting sync.")
-        return
+        import sys
+        sys.exit(1)
     
     # Fetch existing IDs to avoid duplicates and figure out the last extracted date
     try:
