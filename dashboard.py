@@ -603,7 +603,8 @@ with col_row2_R:
         fig.add_trace(go.Bar(x=agg['Period'], y=agg[y_col], name="Vol", marker_color=bar_color, opacity=0.8, customdata=agg['Tooltip'], hovertemplate="%{customdata}<extra></extra>"))
         fig.add_trace(go.Scatter(x=agg['Period'], y=agg[y_col], name="Trend", mode='lines+markers', line=dict(color='#FFFFFF', width=2), marker=dict(size=4, color='#FFFFFF'), customdata=agg['Tooltip'], hovertemplate="%{customdata}<extra></extra>"))
         fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=False, title=""), yaxis=dict(showgrid=False, title=y_title), hovermode="x unified", margin=dict(l=0, r=0, t=10, b=0), height=250, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        chart_key = f"trend_chart_{days_lookback}_{is_ytd}_{activity_filter}"
+        st.plotly_chart(fig, use_container_width=True, key=chart_key)
         st.caption(f"Total: {total_fmt}")
 
     with t1: render_summary_chart(days_lookback=365)
